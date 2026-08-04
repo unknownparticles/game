@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f2f4f7">
+
+<title>四位密码推理</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+}
+
+
+body{
+
+    margin:0;
+
+    min-height:100vh;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    background:#f2f4f7;
+
+    font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Arial;
+
+}
+
+
+
+.container{
+
+    width:95%;
+
+    max-width:460px;
+
+    background:white;
+
+    padding:25px;
+
+    border-radius:18px;
+
+    box-shadow:0 10px 35px rgba(0,0,0,.15);
+
+}
+
+
+
+h1{
+
+    text-align:center;
+
+    margin-bottom:25px;
+
+}
+
+
+
+.clue-row{
+
+    display:flex;
+
+    align-items:center;
+
+    margin:15px 0;
+
+}
+
+
+
+.numbers{
+
+    display:flex;
+
+}
+
+
+
+.num-cell{
+
+
+    width:42px;
+
+    height:42px;
+
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+
+    margin-right:6px;
+
+
+    background:#eeeeee;
+
+
+    border-radius:10px;
+
+
+    font-size:24px;
+
+
+    font-weight:bold;
+
+
+    cursor:pointer;
+
+
+    user-select:none;
+
+    transition:.2s;
+
+}
+
+
+
+.num-cell:active{
+
+    transform:scale(.9);
+
+}
+
+
+
+.mark-red{
+
+    background:#ff5252;
+
+    color:white;
+
+}
+
+
+
+.mark-green{
+
+    background:#4caf50;
+
+    color:white;
+
+}
+
+
+
+.rule{
+
+    margin-left:10px;
+
+    font-size:12px;
+
+    color:#666;
+
+    flex:1;
+
+}
+
+
+
+hr{
+
+    border:none;
+
+    border-top:1px solid #ddd;
+
+    margin:25px 0;
+
+}
+
+
+
+input{
+
+    width:100%;
+
+    height:55px;
+
+    font-size:32px;
+
+    text-align:center;
+
+    letter-spacing:15px;
+
+    border-radius:10px;
+
+    border:1px solid #ccc;
+
+}
+
+
+
+body{
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    gap: 12px;
+}
+
+.topbar{
+    width: 95%;
+    max-width: 460px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.back-btn{
+    appearance: none;
+    border: 1px solid #d0d5dd;
+    background: white;
+    color: #333;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,.06);
+}
+
+.back-btn:active{
+    transform: scale(.98);
+}
+
+.container button{
+
+    width:100%;
+
+    height:45px;
+
+    margin-top:12px;
+
+    border:none;
+
+    border-radius:10px;
+
+    font-size:18px;
+
+    cursor:pointer;
+
+    background:#333;
+
+    color:white;
+
+}
+
+
+.container button:active{
+
+    transform:scale(.98);
+
+}
+
+
+
+.success{
+
+    text-align:center;
+
+    color:#22aa55;
+
+    font-size:22px;
+
+}
+
+
+
+.fail{
+
+    text-align:center;
+
+    color:#ff3333;
+
+    font-size:18px;
+
+}
+
+
+
+.tip{
+
+    margin-top:15px;
+
+    text-align:center;
+
+    color:#888;
+
+    font-size:13px;
+
+}
+
+
+</style>
+
+</head>
+
+
+<body>
+
+<div class="topbar">
+  <button class="back-btn" type="button" data-back-home>← 返回首页</button>
+</div>
+
+<div class="container">
+
+
+<h1>🔐 四位密码推理</h1>
+
+
+<div id="rows"></div>
+
+
+
+<hr>
+
+
+
+<input
+id="answer"
+maxlength="4"
+placeholder="输入密码">
+
+
+
+<button onclick="check()">
+验证密码
+</button>
+
+
+<button onclick="newGame()">
+重新生成
+</button>
+
+
+<p id="result"></p>
+
+
+<div class="tip">
+
+点击数字：
+默认 → 红色 → 绿色 → 默认
+
+</div>
+
+
+</div>
+
+
+
+<script src="../../js/common.js"></script>
+<script>
+
+
+let password="";
+
+let clues=[];
+
+
+let marks=[];
+
+
+
+
+//生成4个不重复数字
+
+function randomPassword(){
+
+
+    let arr=[];
+
+
+    while(arr.length<4){
+
+
+        let n=Math.floor(Math.random()*10);
+
+
+        if(!arr.includes(n))
+
+            arr.push(n);
+
+    }
+
+
+    return arr.join("");
+
+}
+
+
+
+
+//分析猜测
+
+function analyze(guess,target){
+
+
+    let total=0;
+
+    let pos=0;
+
+
+
+    for(let i=0;i<4;i++){
+
+
+        if(guess[i]===target[i]){
+
+            total++;
+
+            pos++;
+
+        }
+
+        else if(target.includes(guess[i])){
+
+            total++;
+
+        }
+
+
+    }
+
+
+
+    return {
+
+        total,
+
+        pos
+
+    };
+
+
+}
+
+
+
+
+
+//生成题目
+
+function createPuzzle(){
+
+
+
+while(true){
+
+
+
+    let pwd=randomPassword();
+
+
+
+    let rows=[];
+
+
+
+    let need=[
+
+        [2,2],
+
+        [2,1],
+
+        [2,0],
+
+        [0,0]
+
+    ];
+
+
+
+    for(let rule of need){
+
+
+
+        let found=null;
+
+
+
+        for(let i=0;i<50000;i++){
+
+
+
+            let r=randomPassword();
+
+
+
+            let result=analyze(r,pwd);
+
+
+
+            if(
+                result.total===rule[0]
+                &&
+                result.pos===rule[1]
+            ){
+
+                found=r;
+
+                break;
+
+            }
+
+
+        }
+
+
+        if(!found)
+
+            break;
+
+
+
+        rows.push(found);
+
+
+    }
+
+
+
+    if(rows.length!==4)
+
+        continue;
+
+
+
+    //唯一解检测
+
+
+    let solutions=[];
+
+
+
+    for(let i=0;i<10000;i++){
+
+
+
+        let c=i.toString().padStart(4,"0");
+
+
+
+        if(new Set(c).size!==4)
+
+            continue;
+
+
+
+        let ok=true;
+
+
+
+        let rules=[
+
+            [rows[0],2,2],
+
+            [rows[1],2,1],
+
+            [rows[2],2,0],
+
+            [rows[3],0,0]
+
+        ];
+
+
+
+        for(let r of rules){
+
+
+
+            let a=analyze(r[0],c);
+
+
+
+            if(
+                a.total!==r[1]
+                ||
+                a.pos!==r[2]
+            ){
+
+                ok=false;
+
+                break;
+
+            }
+
+        }
+
+
+
+        if(ok)
+
+            solutions.push(c);
+
+
+    }
+
+
+
+    if(solutions.length===1){
+
+
+        password=pwd;
+
+        clues=rows;
+
+
+        return;
+
+
+    }
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+//显示
+
+function render(){
+
+
+let box=document.getElementById("rows");
+
+
+box.innerHTML="";
+
+
+
+let rules=[
+
+"2个数字正确且位置正确",
+
+"2个数字正确，1个位置正确",
+
+"2个数字正确但位置错误",
+
+"4个数字全部错误"
+
+];
+
+
+
+
+clues.forEach((row,index)=>{
+
+
+let div=document.createElement("div");
+
+
+div.className="clue-row";
+
+
+
+let html="";
+
+
+
+for(let i=0;i<4;i++){
+
+
+
+let cls="num-cell";
+
+
+
+if(marks[index][i]==="red")
+
+    cls+=" mark-red";
+
+
+if(marks[index][i]==="green")
+
+    cls+=" mark-green";
+
+
+
+
+html+=`
+
+<div 
+class="${cls}"
+onclick="mark(${index},${i})">
+
+${row[i]}
+
+</div>
+
+`;
+
+}
+
+
+
+div.innerHTML=`
+
+<div class="numbers">
+
+${html}
+
+</div>
+
+<div class="rule">
+
+${rules[index]}
+
+</div>
+
+`;
+
+
+
+box.appendChild(div);
+
+
+
+});
+
+
+
+}
+
+
+
+
+
+//标记
+
+function mark(row,col){
+
+
+
+if(marks[row][col]===""){
+
+
+    marks[row][col]="red";
+
+
+}
+
+else if(marks[row][col]==="red"){
+
+
+    marks[row][col]="green";
+
+
+}
+
+else{
+
+
+    marks[row][col]="";
+
+
+}
+
+
+render();
+
+
+}
+
+
+
+
+
+
+//验证
+
+function check(){
+
+
+
+let value=
+document.getElementById("answer").value;
+
+
+
+let result=
+document.getElementById("result");
+
+
+
+if(
+value.length!==4
+||
+new Set(value).size!==4
+){
+
+
+result.className="fail";
+
+result.innerHTML=
+"请输入4个不重复数字";
+
+
+return;
+
+
+}
+
+
+
+
+if(value===password){
+
+
+result.className="success";
+
+result.innerHTML=
+"🎉 破解成功";
+
+
+}
+else{
+
+
+result.className="fail";
+
+result.innerHTML=
+"❌ 密码错误";
+
+
+}
+
+
+
+}
+
+
+
+
+//新游戏
+
+function newGame(){
+
+
+
+document.getElementById("answer").value="";
+
+
+document.getElementById("result").innerHTML="";
+
+
+
+marks=[
+
+["","","",""],
+
+["","","",""],
+
+["","","",""],
+
+["","","",""]
+
+];
+
+
+
+createPuzzle();
+
+
+render();
+
+
+
+}
+
+
+
+
+newGame();
+
+
+
+</script>
+
+
+</body>
+
+</html>
