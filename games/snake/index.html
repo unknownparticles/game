@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../../css/style.css" />
 </head>
 <body>
-  <main class="game-shell">
+  <main class="game-shell anim-page">
     <div class="topbar">
       <button class="btn" type="button" data-back-home>← 返回首页</button>
       <h1>贪吃蛇</h1>
@@ -89,7 +89,7 @@
         snake.some((s) => s.x === head.x && s.y === head.y)
       ) {
         running = false;
-        stateEl.textContent = "游戏结束";
+        GameCenter.flashStatus(stateEl, "fail", "游戏结束");
         clearInterval(timer);
         draw(true);
         return;
@@ -98,9 +98,11 @@
       if (head.x === food.x && head.y === food.y) {
         score += 10;
         scoreEl.textContent = score;
+        GameCenter.bump(scoreEl);
         if (score > best) {
           best = score;
           bestEl.textContent = best;
+          GameCenter.bump(bestEl);
           GameCenter.storage.set(BEST_KEY, best);
         }
         spawnFood();
@@ -110,7 +112,9 @@
       draw();
     }
 
+    let animT = 0;
     function draw(dead) {
+      animT += 1;
       ctx.fillStyle = "#0a0f1d";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (let i = 0; i < grid; i++) {
@@ -121,12 +125,30 @@
           }
         }
       }
+      const pulse = 1 + Math.sin(animT / 6) * 0.12;
+      const foodSize = (cell - 6) * pulse;
+      const foodPad = (cell - foodSize) / 2;
+      ctx.shadowColor = "rgba(248,113,113,0.55)";
+      ctx.shadowBlur = 12 + Math.sin(animT / 6) * 6;
       ctx.fillStyle = "#f87171";
-      roundRect(food.x * cell + 3, food.y * cell + 3, cell - 6, cell - 6, 6);
+      roundRect(food.x * cell + foodPad, food.y * cell + foodPad, foodSize, foodSize, 6);
+      ctx.shadowBlur = 0;
       snake.forEach((s, idx) => {
-        ctx.fillStyle = idx === 0 ? (dead ? "#fbbf24" : "#34d399") : "rgba(52,211,153,0.75)";
+        const alpha = 1 - idx * 0.04;
+        ctx.fillStyle = idx === 0
+          ? (dead ? "#fbbf24" : "#34d399")
+          : `rgba(52,211,153,${Math.max(0.35, alpha)})`;
+        if (idx === 0 && !dead) {
+          ctx.shadowColor = "rgba(52,211,153,0.45)";
+          ctx.shadowBlur = 10;
+        }
         roundRect(s.x * cell + 2, s.y * cell + 2, cell - 4, cell - 4, 7);
+        ctx.shadowBlur = 0;
       });
+      if (dead) {
+        ctx.fillStyle = "rgba(248,113,113,0.12)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
 
     function roundRect(x, y, w, h, r) {
@@ -176,8 +198,13 @@
       else setDirection(0, dy > 0 ? 1 : -1);
     }, { passive: true });
 
+    function animate() {
+      draw(!running && stateEl.textContent === "游戏结束");
+      requestAnimationFrame(animate);
+    }
     document.getElementById("restartBtn").addEventListener("click", reset);
     reset();
+    requestAnimationFrame(animate);
   </script>
 </body>
 </html>

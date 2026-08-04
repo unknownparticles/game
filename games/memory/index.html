@@ -22,21 +22,37 @@
       color: transparent;
       font-size: clamp(1.4rem, 6vw, 2rem);
       cursor: pointer;
-      transition: transform 0.18s ease, background 0.18s ease;
+      transition: transform 0.25s cubic-bezier(.2,.8,.2,1), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     }
     .card.flipped, .card.matched {
       color: var(--text);
       background: rgba(255,255,255,0.08);
     }
+    .card.flipped {
+      animation: cardReveal 0.32s ease;
+      box-shadow: 0 10px 24px rgba(108,140,255,0.18);
+      transform: scale(1.03);
+    }
     .card.matched {
       border-color: rgba(52, 211, 153, 0.5);
       background: rgba(52, 211, 153, 0.15);
+      animation: gc-pop 0.4s ease;
+      transform: scale(1);
     }
     .card:disabled { cursor: default; }
+    .card.mismatch {
+      animation: gc-shake 0.4s ease;
+      border-color: rgba(248, 113, 113, 0.55);
+    }
+    @keyframes cardReveal {
+      0% { transform: scaleX(0.55) scaleY(0.92); filter: brightness(1.2); }
+      55% { transform: scaleX(1.05) scaleY(1.03); }
+      100% { transform: scale(1.03); filter: brightness(1); }
+    }
   </style>
 </head>
 <body>
-  <main class="game-shell">
+  <main class="game-shell anim-page">
     <div class="topbar">
       <button class="btn" type="button" data-back-home>← 返回首页</button>
       <h1>记忆翻牌</h1>
@@ -106,6 +122,7 @@
       }
       moves += 1;
       movesEl.textContent = moves;
+      GameCenter.bump(movesEl);
       if (deck[first.index].icon === card.icon) {
         card.matched = true;
         deck[first.index].matched = true;
@@ -113,25 +130,29 @@
         first.btn.classList.add("matched");
         pairs += 1;
         pairsEl.textContent = pairs + "/8";
+        GameCenter.bump(pairsEl);
         first = null;
         if (pairs === 8) {
-          statusEl.textContent = "全部配对成功！";
+          GameCenter.flashStatus(statusEl, "success", "全部配对成功！");
           if (best == null || moves < best) {
             best = moves;
             bestEl.textContent = best;
+            GameCenter.bump(bestEl);
             GameCenter.storage.set(BEST_KEY, best);
           }
         } else {
-          statusEl.textContent = "配对成功，继续！";
+          GameCenter.flashStatus(statusEl, "success", "配对成功，继续！");
         }
       } else {
         lock = true;
-        statusEl.textContent = "再试一次";
+        btn.classList.add("mismatch");
+        first.btn.classList.add("mismatch");
+        GameCenter.flashStatus(statusEl, "fail", "再试一次");
         const prev = first;
         first = null;
         setTimeout(() => {
-          btn.classList.remove("flipped");
-          prev.btn.classList.remove("flipped");
+          btn.classList.remove("flipped", "mismatch");
+          prev.btn.classList.remove("flipped", "mismatch");
           btn.textContent = "?";
           prev.btn.textContent = "?";
           lock = false;

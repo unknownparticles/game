@@ -371,3 +371,147 @@ canvas, .board {
     font-size: 0.98rem;
   }
 }
+
+
+/* ===== Animations ===== */
+@keyframes gc-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gc-pop {
+  0% { transform: scale(0.7); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes gc-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+@keyframes gc-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes gc-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(108, 140, 255, 0.0); }
+  50% { box-shadow: 0 0 0 8px rgba(108, 140, 255, 0.12); }
+}
+
+@keyframes gc-score-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); color: #a5b4fc; }
+  100% { transform: scale(1); }
+}
+
+@keyframes gc-win-flash {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.25); }
+}
+
+@keyframes gc-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.anim-page {
+  animation: gc-fade-up 0.55s ease both;
+}
+
+.anim-stagger > * {
+  animation: gc-fade-up 0.5s ease both;
+}
+
+.anim-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.anim-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.anim-stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.anim-stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.anim-stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.anim-stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.anim-stagger > *:nth-child(7) { animation-delay: 0.4s; }
+.anim-stagger > *:nth-child(8) { animation-delay: 0.46s; }
+
+.game-card {
+  transition: transform 0.28s cubic-bezier(.2,.8,.2,1), border-color 0.2s ease, background 0.2s ease, box-shadow 0.28s ease;
+}
+
+.game-card:hover,
+.game-card:focus-visible {
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.42);
+}
+
+.game-card .icon {
+  transition: transform 0.28s ease;
+  animation: gc-float 3.2s ease-in-out infinite;
+}
+
+.game-card:hover .icon,
+.game-card:focus-visible .icon {
+  transform: scale(1.08) rotate(-4deg);
+  animation: none;
+}
+
+.game-card .play-link {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.game-card:hover .play-link {
+  transform: translateX(4px);
+  color: #e8edff;
+}
+
+.btn, .btn-primary {
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  box-shadow: 0 10px 24px rgba(108, 140, 255, 0.28);
+}
+
+.score-box strong.bump {
+  display: inline-block;
+  animation: gc-score-bump 0.35s ease;
+}
+
+.status.success-anim,
+.success-anim {
+  animation: gc-pop 0.4s ease;
+  color: var(--success);
+}
+
+.status.fail-anim,
+.fail-anim {
+  animation: gc-shake 0.4s ease;
+  color: var(--danger);
+}
+
+.score-box strong {
+  display: inline-block;
+  transform-origin: center;
+}
+
+.panel {
+  animation: gc-fade-up 0.45s ease both;
+}
+
+.topbar {
+  animation: gc-fade-in 0.35s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

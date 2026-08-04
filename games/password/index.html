@@ -299,6 +299,88 @@ body{
 }
 
 
+
+
+.clue-row{
+    animation: rowIn .45s ease both;
+}
+
+.clue-row:nth-child(1){ animation-delay:.05s; }
+.clue-row:nth-child(2){ animation-delay:.12s; }
+.clue-row:nth-child(3){ animation-delay:.19s; }
+.clue-row:nth-child(4){ animation-delay:.26s; }
+
+@keyframes rowIn{
+    from{ opacity:0; transform:translateY(12px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+
+.num-cell{
+    transition: transform .18s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+.num-cell:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+}
+
+.mark-red, .mark-green{
+    animation: markPop .28s ease;
+}
+
+@keyframes markPop{
+    0%{ transform: scale(.85); }
+    70%{ transform: scale(1.08); }
+    100%{ transform: scale(1); }
+}
+
+.container{
+    animation: cardIn .45s ease both;
+}
+
+@keyframes cardIn{
+    from{ opacity:0; transform: translateY(16px) scale(.98); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+}
+
+.success{
+    animation: successPop .45s ease;
+}
+
+@keyframes successPop{
+    0%{ transform: scale(.8); opacity:0; }
+    70%{ transform: scale(1.08); opacity:1; }
+    100%{ transform: scale(1); }
+}
+
+.fail{
+    animation: failShake .4s ease;
+}
+
+@keyframes failShake{
+    0%,100%{ transform: translateX(0); }
+    25%{ transform: translateX(-6px); }
+    50%{ transform: translateX(6px); }
+    75%{ transform: translateX(-4px); }
+}
+
+.topbar{
+    animation: cardIn .35s ease both;
+}
+
+.container button{
+    transition: transform .15s ease, background .2s ease, box-shadow .2s ease;
+}
+
+.container button:hover{
+    box-shadow: 0 8px 18px rgba(0,0,0,.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+
 </style>
 
 </head>
@@ -817,25 +899,16 @@ return;
 
 
 
+result.className="";
+void result.offsetWidth;
+
 if(value===password){
-
-
 result.className="success";
-
-result.innerHTML=
-"🎉 破解成功";
-
-
+result.innerHTML="🎉 破解成功";
 }
 else{
-
-
 result.className="fail";
-
-result.innerHTML=
-"❌ 密码错误";
-
-
+result.innerHTML="❌ 密码错误";
 }
 
 
@@ -848,37 +921,26 @@ result.innerHTML=
 //新游戏
 
 function newGame(){
-
-
-
 document.getElementById("answer").value="";
-
-
 document.getElementById("result").innerHTML="";
-
-
+document.getElementById("result").className="";
 
 marks=[
-
 ["","","",""],
-
 ["","","",""],
-
 ["","","",""],
-
 ["","","",""]
-
 ];
 
-
-
 createPuzzle();
-
-
 render();
 
-
-
+const box=document.querySelector(".container");
+if(box){
+  box.style.animation="none";
+  void box.offsetWidth;
+  box.style.animation="";
+}
 }
 
 

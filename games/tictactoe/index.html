@@ -23,19 +23,29 @@
       font-size: clamp(2rem, 10vw, 3rem);
       font-weight: 700;
       cursor: pointer;
+      transition: transform 0.18s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .cell:hover:not(:disabled) {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,0.08);
     }
     .cell:disabled {
       cursor: default;
       opacity: 1;
     }
+    .cell.placed {
+      animation: gc-pop 0.32s ease;
+    }
     .cell.win {
       background: rgba(52, 211, 153, 0.18);
       border-color: rgba(52, 211, 153, 0.45);
+      animation: gc-win-flash 0.8s ease infinite;
+      box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
     }
   </style>
 </head>
 <body>
-  <main class="game-shell">
+  <main class="game-shell anim-page">
     <div class="topbar">
       <button class="btn" type="button" data-back-home>← 返回首页</button>
       <h1>井字棋</h1>
@@ -96,31 +106,40 @@
       return null;
     }
 
-    function render(win) {
+    function render(win, placedIndex) {
       [...boardEl.children].forEach((el, i) => {
+        const had = el.textContent;
         el.textContent = cells[i];
         el.disabled = locked || Boolean(cells[i]);
         el.classList.toggle("win", win && win.line.includes(i));
+        if (placedIndex === i && cells[i] && had !== cells[i]) {
+          el.classList.remove("placed");
+          void el.offsetWidth;
+          el.classList.add("placed");
+        }
       });
     }
 
-    function finish(result) {
+    function finish(result, placedIndex) {
       locked = true;
       if (result.mark === "X") {
         scores.you += 1;
         youEl.textContent = scores.you;
-        statusEl.textContent = "你赢了！";
+        GameCenter.bump(youEl);
+        GameCenter.flashStatus(statusEl, "success", "你赢了！");
       } else if (result.mark === "O") {
         scores.cpu += 1;
         cpuEl.textContent = scores.cpu;
-        statusEl.textContent = "电脑获胜";
+        GameCenter.bump(cpuEl);
+        GameCenter.flashStatus(statusEl, "fail", "电脑获胜");
       } else {
         scores.draw += 1;
         drawEl.textContent = scores.draw;
+        GameCenter.bump(drawEl);
         statusEl.textContent = "平局";
       }
       GameCenter.storage.set("gc_ttt_scores", scores);
-      render(result);
+      render(result, placedIndex);
     }
 
     function bestMove() {
@@ -142,13 +161,16 @@
       if (locked || cells[i]) return;
       cells[i] = "X";
       let result = winner(cells);
-      if (result) return finish(result);
+      if (result) return finish(result, i);
+      render(null, i);
       const ai = bestMove();
-      cells[ai] = "O";
-      result = winner(cells);
-      if (result) return finish(result);
-      statusEl.textContent = "轮到你落子";
-      render(null);
+      setTimeout(() => {
+        cells[ai] = "O";
+        result = winner(cells);
+        if (result) return finish(result, ai);
+        statusEl.textContent = "轮到你落子";
+        render(null, ai);
+      }, 180);
     }
 
     document.getElementById("restartBtn").addEventListener("click", createBoard);

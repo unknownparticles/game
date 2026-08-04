@@ -34,6 +34,19 @@
         }
       },
     },
+    bump(el) {
+      if (!el) return;
+      el.classList.remove("bump");
+      void el.offsetWidth;
+      el.classList.add("bump");
+    },
+    flashStatus(el, type, text) {
+      if (!el) return;
+      if (text != null) el.textContent = text;
+      el.classList.remove("success-anim", "fail-anim");
+      void el.offsetWidth;
+      el.classList.add(type === "success" ? "success-anim" : "fail-anim");
+    },
   };
 
   document.addEventListener("DOMContentLoaded", () => {

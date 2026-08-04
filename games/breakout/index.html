@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../../css/style.css" />
 </head>
 <body>
-  <main class="game-shell">
+  <main class="game-shell anim-page">
     <div class="topbar">
       <button class="btn" type="button" data-back-home>← 返回首页</button>
       <h1>打砖块</h1>
@@ -37,11 +37,13 @@
     const statusEl = document.getElementById("status");
     const BEST_KEY = "gc_breakout_best";
 
-    let paddle, ball, bricks, score, lives, best, running, keys, raf;
+    let paddle, ball, bricks, score, lives, best, running, keys, raf, particles, hitFlash;
 
     best = GameCenter.storage.get(BEST_KEY, 0);
     bestEl.textContent = best;
     keys = {};
+    particles = [];
+    hitFlash = 0;
 
     function resizeForMobile() {
       const maxW = Math.min(420, window.innerWidth - 32);
@@ -90,6 +92,8 @@
         livesEl.textContent = "3";
         buildBricks();
       }
+      particles = [];
+      hitFlash = 0;
       paddle = { w: 86, h: 12, x: canvas.width / 2 - 43, y: canvas.height - 36, speed: 7 };
       resetBall();
       running = false;
@@ -145,28 +149,52 @@
           ball.vy *= -1;
           score += 10;
           scoreEl.textContent = score;
+          GameCenter.bump(scoreEl);
+          hitFlash = 8;
+          for (let i = 0; i < 10; i++) {
+            particles.push({
+              x: b.x + b.w / 2,
+              y: b.y + b.h / 2,
+              vx: (Math.random() - 0.5) * 4.5,
+              vy: (Math.random() - 0.8) * 4.5,
+              life: 24 + Math.random() * 10,
+              color: b.color,
+              size: 2 + Math.random() * 2.5,
+            });
+          }
           if (score > best) {
             best = score;
             bestEl.textContent = best;
+            GameCenter.bump(bestEl);
             GameCenter.storage.set(BEST_KEY, best);
           }
         }
       });
 
+      particles = particles.filter((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.12;
+        p.life -= 1;
+        return p.life > 0;
+      });
+      if (hitFlash > 0) hitFlash -= 1;
+
       if (bricks.every((b) => !b.alive)) {
         running = false;
-        statusEl.textContent = "全部清除，胜利！";
+        GameCenter.flashStatus(statusEl, "success", "全部清除，胜利！");
         return;
       }
 
       if (ball.y - ball.r > canvas.height) {
         lives -= 1;
         livesEl.textContent = lives;
+        GameCenter.bump(livesEl);
         running = false;
-        if (lives <= 0) statusEl.textContent = "游戏结束，点击重新开始";
+        if (lives <= 0) GameCenter.flashStatus(statusEl, "fail", "游戏结束，点击重新开始");
         else {
           resetBall();
-          statusEl.textContent = "生命 -1，点击继续";
+          GameCenter.flashStatus(statusEl, "fail", "生命 -1，点击继续");
         }
       }
     }
@@ -188,10 +216,27 @@
       ctx.fillStyle = "#93c5fd";
       roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 8);
 
+      particles.forEach((p) => {
+        ctx.globalAlpha = Math.max(0, p.life / 30);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
       ctx.beginPath();
       ctx.fillStyle = "#f8fafc";
+      ctx.shadowColor = "rgba(255,255,255,0.55)";
+      ctx.shadowBlur = 10;
       ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
+
+      if (hitFlash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${0.04 * hitFlash})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
 
     function roundRect(x, y, w, h, r) {
