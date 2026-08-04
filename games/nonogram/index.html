@@ -21,7 +21,7 @@
     <div id="home" class="page">
       <h1>🧩 方块推理</h1>
 
-      <p>Nonogram 数织挑战 · 支持经典 / 草方块 / 除冰</p>
+      <p>15×15 数织 · 随机 50~160 方块 · 经典 / 草方块 / 除冰</p>
 
       <button onclick="startGame('classic')">▶ 经典模式</button>
       <button onclick="startGrassMode()">🌿 草方块模式</button>
@@ -45,17 +45,10 @@
       </div>
 
       <div class="status">
-        <div>
-          生命:
-
-          <span id="life"> ❤️❤️❤️❤️❤️ </span>
-        </div>
-
-        <div>
-          时间:
-
-          <span id="timer"> 00:00 </span>
-        </div>
+        <div>关卡: <span id="stageLabel">1</span></div>
+        <div>方块: <span id="blockCount">-</span></div>
+        <div>生命: <span id="life">❤️❤️❤️❤️❤️</span></div>
+        <div>时间: <span id="timer">00:00</span></div>
       </div>
 
       <div class="tools">
@@ -78,16 +71,21 @@
       </div>
 
       <div class="board-wrapper">
-        <div id="colHints" class="col-hints"></div>
-
-        <div class="main-board">
-          <div id="rowHints" class="row-hints"></div>
-
-          <div id="board" class="board"></div>
+        <div class="game-board">
+          <div class="top-area">
+            <div id="colHints" class="col-hints"></div>
+          </div>
+          <div class="main-board">
+            <div id="rowHints" class="row-hints"></div>
+            <div id="board" class="board"></div>
+          </div>
         </div>
       </div>
 
       <div id="message"></div>
+      <div id="nextLevelBar" class="next-level-bar hidden">
+        <button type="button" id="nextLevelBtn" onclick="nextLevel()">下一关 →</button>
+      </div>
       <p id="modeTip" class="mode-tip">
         操作：单击填充 ■；右键/长按标记 ×。<br>
         点错会扣生命，并立刻标红显示该格正确答案。

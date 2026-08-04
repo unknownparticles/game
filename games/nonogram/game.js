@@ -125,13 +125,13 @@ function updateModeUI() {
   if (tip) {
     if (gameMode === MODE_GRASS) {
       tip.innerHTML =
-        "草方块模式：5×5 草地区不可点击；点击揭示相邻格后草地才会消失。<br>有草的行/列数字隐藏；锤子/磁铁/飞机都不能作用于草地或被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
+        "草方块模式：5×5 草地区不可点击；相邻格被揭示（玩家点击或自动标 ×）后草地消失。<br>有草的行/列数字隐藏；锤子/磁铁/飞机都不能作用于草地或被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
     } else if (gameMode === MODE_ICE) {
       tip.innerHTML =
-        "除冰模式：随机 5 块冰，所在行/列数字隐藏；冰块四周都揭示后才会碎裂。<br>锤子/磁铁只能揭示非冰块，飞机只能揭示未被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
+        "除冰模式：随机 5 块冰，所在行/列数字隐藏；四周都被揭示（含自动标 ×）后碎裂。<br>锤子/磁铁只能揭示非冰块，飞机只能揭示未被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
     } else {
       tip.innerHTML =
-        "操作：单击填充 ■；右键/长按标记 ×。<br>点错会扣生命，并立刻标红显示该格正确答案。";
+        "随机 50~160 方块，答案仅后台保存；左右/上方数字由空格分段生成。<br>操作：单击填充 ■；右键/长按标记 ×。点错会扣生命并标红显示正确答案。";
     }
   }
 }
@@ -159,7 +159,12 @@ function backHome() {
 
 function startGame(mode = MODE_CLASSIC) {
   gameMode = mode || MODE_CLASSIC;
-  loadLevel(levels[0], gameMode);
+  const level = createRandomLevel({
+    stage: 1,
+    name: "第 1 关",
+    density: "mid",
+  });
+  loadLevel(level, gameMode);
   show("gamePage");
 }
 
@@ -179,19 +184,21 @@ function showLevels(mode = MODE_CLASSIC) {
 
   const modeInfo = document.createElement("p");
   modeInfo.className = "level-mode-info";
-  modeInfo.textContent = "当前选择：" + (MODE_LABELS[gameMode] || "经典模式");
+  modeInfo.textContent = "当前选择：" + (MODE_LABELS[gameMode] || "经典模式") + "（每关随机 50~160 方块）";
   box.appendChild(modeInfo);
 
-  levels.forEach((level) => {
+  levels.forEach((level, idx) => {
     const div = document.createElement("div");
     div.className = "level-card";
     div.innerHTML = `
       <h3>${level.name}</h3>
       <p>难度: ${level.difficulty}</p>
+      <p>随机生成，答案不预显</p>
       <button type="button">开始</button>
     `;
     div.querySelector("button").onclick = () => {
-      loadLevel(level, gameMode);
+      const ready = materializeLevel(level, { stage: idx + 1 });
+      loadLevel(ready, gameMode);
       show("gamePage");
     };
     box.appendChild(div);
@@ -200,7 +207,7 @@ function showLevels(mode = MODE_CLASSIC) {
 
 function dailyGame(mode = MODE_CLASSIC) {
   gameMode = mode || MODE_CLASSIC;
-  loadLevel(getDailyLevel(), gameMode);
+  loadLevel(getDailyLevel({ mode: gameMode }), gameMode);
   show("gamePage");
 }
 
@@ -262,25 +269,31 @@ function initModeHazards(mode) {
   }
 }
 
-// 点击揭示后：相邻草方块消失
-function clearGrassAdjacentTo(r, c) {
+// 任意已揭示格（点击/自动标×/技能）都会清除其相邻草方块
+function clearReadyGrass(silent) {
   if (gameMode !== MODE_GRASS) return false;
   let cleared = 0;
-  neighbors4(r, c).forEach(([nr, nc]) => {
-    if (isGrass(nr, nc)) {
-      grassMap[nr][nc] = false;
-      clearingAnim.add(cellKey(nr, nc));
-      cleared += 1;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      // 只认“周围方块已变化/已揭示”的邻居
+      if (isBlocked(r, c) || board[r][c] === UNKNOWN) continue;
+      neighbors4(r, c).forEach(([nr, nc]) => {
+        if (isGrass(nr, nc)) {
+          grassMap[nr][nc] = false;
+          clearingAnim.add(cellKey(nr, nc));
+          cleared += 1;
+        }
+      });
     }
-  });
-  if (cleared) {
-    showMessage(`🌿 揭示相邻格，清除了 ${cleared} 个草方块`, "msg-info");
+  }
+  if (cleared && !silent) {
+    showMessage(`🌿 周围方块变化，清除了 ${cleared} 个草方块`, "msg-info");
   }
   return cleared > 0;
 }
 
-// 冰块四周都被揭示则碎裂
-function breakReadyIce() {
+// 冰块四周都被揭示（含自动标×）则碎裂
+function breakReadyIce(silent) {
   if (gameMode !== MODE_ICE) return false;
   let broken = 0;
   for (let r = 0; r < SIZE; r++) {
@@ -295,46 +308,84 @@ function breakReadyIce() {
       }
     }
   }
-  if (broken) {
-    showMessage(`🧊 碎裂了 ${broken} 块冰，格子已可点击`, "msg-info");
+  if (broken && !silent) {
+    showMessage(`🧊 周围方块变化，碎裂了 ${broken} 块冰`, "msg-info");
   }
   return broken > 0;
 }
 
-function settleBoard(fromPlayerClick, clickR, clickC) {
-  // 玩家点击才会清除相邻草；冰块在任意揭示后都可碎裂
-  if (fromPlayerClick) clearGrassAdjacentTo(clickR, clickC);
+function snapshotBoard() {
+  return board.map((row) => row.slice());
+}
 
-  // 冰块碎裂后可能解锁自动补全，自动补全又可能促成下一块冰碎裂
+function boardEquals(a, b) {
+  return a.every((row, r) => row.every((v, c) => v === b[r][c]));
+}
+
+function countMask(mask) {
+  let n = 0;
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (mask[r][c]) n++;
+  return n;
+}
+
+// 统一结算：周围变化触发草/冰，并可与自动标×互相连锁
+function settleBoard() {
+  let totalGrass = 0;
+  let totalIce = 0;
   let guard = 0;
-  while (guard++ < 40) {
-    const broke = breakReadyIce();
-    const before = board.map((row) => row.slice());
+  while (guard++ < 50) {
+    const beforeBoard = snapshotBoard();
+    const beforeGrass = countMask(grassMap);
+    const beforeIce = countMask(iceMap);
+
+    if (clearReadyGrass(true)) totalGrass += Math.max(0, beforeGrass - countMask(grassMap));
+    if (breakReadyIce(true)) totalIce += Math.max(0, beforeIce - countMask(iceMap));
+
     autoFill();
-    const same =
-      before.length === board.length &&
-      before.every((row, r) => row.every((v, c) => v === board[r][c]));
-    if (!broke && same) break;
+
+    const grassSame = countMask(grassMap) === beforeGrass;
+    const iceSame = countMask(iceMap) === beforeIce;
+    const boardSame = boardEquals(beforeBoard, board);
+    // 若本轮草/冰有变化，继续；若仅 board 因 autofill 变化也继续，好让新标×再触发
+    if (grassSame && iceSame && boardSame) break;
+  }
+
+  if (totalGrass && totalIce) {
+    showMessage(`🌿🧊 周围变化：清除 ${totalGrass} 草，碎裂 ${totalIce} 冰`, "msg-info");
+  } else if (totalGrass) {
+    showMessage(`🌿 周围方块变化，清除了 ${totalGrass} 个草方块`, "msg-info");
+  } else if (totalIce) {
+    showMessage(`🧊 周围方块变化，碎裂了 ${totalIce} 块冰`, "msg-info");
   }
 }
 
-function afterPlayerReveal(r, c) {
-  settleBoard(true, r, c);
+function afterPlayerReveal(_r, _c) {
+  settleBoard();
 }
 
 function afterAnyBoardChange() {
-  // 工具/AI 等非点击揭示：不清除草，只处理冰块与自动补全
-  settleBoard(false);
+  settleBoard();
 }
 
 // ===============================
 // 加载关卡
 // ===============================
 
+function hideNextLevelBar() {
+  const bar = document.getElementById("nextLevelBar");
+  if (bar) bar.classList.add("hidden");
+}
+
+function showNextLevelBar() {
+  const bar = document.getElementById("nextLevelBar");
+  if (bar) bar.classList.remove("hidden");
+}
+
 function loadLevel(level, mode = MODE_CLASSIC) {
-  currentLevel = level;
+  const ready = materializeLevel(level || {}, { stage: (level && level.stage) || 1 });
+  currentLevel = ready;
   gameMode = mode || MODE_CLASSIC;
-  solution = JSON.parse(JSON.stringify(level.solution));
+  solution = JSON.parse(JSON.stringify(ready.solution));
   board = Array.from({ length: SIZE }, () => Array(SIZE).fill(UNKNOWN));
   life = 5;
   seconds = 0;
@@ -342,6 +393,7 @@ function loadLevel(level, mode = MODE_CLASSIC) {
   tools = { hammer: 3, plane: 1, magnet: 1 };
   errorCells = new Set();
   gameOver = false;
+  hideNextLevelBar();
   showMessage("", null);
   initModeHazards(gameMode);
   updateModeUI();
@@ -349,6 +401,11 @@ function loadLevel(level, mode = MODE_CLASSIC) {
   renderTips();
   renderBoard();
   startTimer();
+  // 答案仅存 solution，不在棋盘预显
+  showMessage(
+    `🧩 ${ready.name || "新关卡"} · ${ready.blocks || "?"} 个方块（仅后台记录）`,
+    "msg-info",
+  );
 }
 
 // ===============================
@@ -499,24 +556,24 @@ function updateBoard(flashKey) {
     }
 
     if (board[r][c] === FILLED) {
-      cell.classList.add("block");
-      cell.innerHTML = "■";
+      cell.classList.add("block", "green");
+      cell.innerHTML = "";
     }
 
     if (board[r][c] === EMPTY) {
-      cell.classList.add("empty");
+      cell.classList.add("empty", "cross");
       cell.innerHTML = "×";
     }
 
     if (isError) {
       cell.classList.add("error", "locked");
       if (solution[r][c] === 1) {
-        cell.classList.add("block");
-        cell.classList.remove("empty");
-        cell.innerHTML = "■";
+        cell.classList.add("block", "green");
+        cell.classList.remove("empty", "cross");
+        cell.innerHTML = "";
       } else {
-        cell.classList.add("empty");
-        cell.classList.remove("block");
+        cell.classList.add("empty", "cross");
+        cell.classList.remove("block", "green");
         cell.innerHTML = "×";
       }
     }
@@ -626,6 +683,13 @@ function loseLife() {
 function updateStatus() {
   const lifeEl = document.getElementById("life");
   if (lifeEl) lifeEl.innerHTML = "❤️".repeat(life) || "💔";
+  const stageEl = document.getElementById("stageLabel");
+  if (stageEl) stageEl.textContent = (currentLevel && currentLevel.stage) || 1;
+  const blockEl = document.getElementById("blockCount");
+  if (blockEl) {
+    const n = (currentLevel && currentLevel.blocks) || (solution && solution.length ? solution.flat().filter(Boolean).length : "-");
+    blockEl.textContent = n;
+  }
   const hammer = document.getElementById("hammerCount");
   const plane = document.getElementById("planeCount");
   const magnet = document.getElementById("magnetCount");
@@ -849,18 +913,34 @@ function checkWin() {
   clearInterval(timer);
   const star = calculateStar();
   gameOver = true;
+  const stage = (currentLevel && currentLevel.stage) || 1;
   showMessage(
-    `🎉 挑战完成!<br>${"⭐".repeat(star)}<br>时间：${formatTime(seconds)}<br>${MODE_LABELS[gameMode] || ""}`,
+    `🎉 第 ${stage} 关完成!<br>${"⭐".repeat(star)}<br>时间：${formatTime(seconds)}<br>${MODE_LABELS[gameMode] || ""}<br>可以进入下一关`,
     "msg-success",
   );
+  showNextLevelBar();
 
   saveRecord({
     level: currentLevel.id,
     mode: gameMode,
     time: seconds,
     star,
+    stage,
+    blocks: currentLevel.blocks,
   });
   clearSave();
+}
+
+function nextLevel() {
+  const next = typeof nextRandomLevel === "function"
+    ? nextRandomLevel(currentLevel, gameMode)
+    : createRandomLevel({
+        stage: ((currentLevel && currentLevel.stage) || 1) + 1,
+        name: "第 " + (((currentLevel && currentLevel.stage) || 1) + 1) + " 关",
+        density: (currentLevel && currentLevel.density) || "mid",
+      });
+  loadLevel(next, gameMode);
+  show("gamePage");
 }
 
 function calculateStar() {
@@ -910,10 +990,21 @@ function restoreGame() {
   const data = loadGame();
   if (!data) return;
 
-  let level = getLevel(data.level);
-  if (!level && data.levelSnapshot) level = data.levelSnapshot;
+  // 优先用存档快照，避免 getLevel 重新随机导致答案变化
+  let level = data.levelSnapshot;
+  if (!level && data.solution) {
+    level = {
+      id: data.level,
+      name: "继续挑战",
+      difficulty: "存档",
+      stage: (data.levelSnapshot && data.levelSnapshot.stage) || 1,
+      blocks: data.solution.flat().filter(Boolean).length,
+      solution: data.solution,
+    };
+  }
+  if (!level) level = getLevel(data.level);
   if (!level && String(data.level).startsWith("daily_")) {
-    level = data.levelSnapshot || getDailyLevel();
+    level = getDailyLevel({ mode: data.mode });
   }
   if (!level) return;
 
@@ -930,12 +1021,25 @@ function restoreGame() {
   iceMap = deserializeMask(data.ice);
   startTime = Date.now() - seconds * 1000;
 
+  hideNextLevelBar();
   updateModeUI();
   updateStatus();
   renderTips();
   renderBoard();
   startTimer();
-  if (gameOver) clearInterval(timer);
+  if (gameOver) {
+    clearInterval(timer);
+    // 若已通关仍显示下一关入口
+    let won = true;
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (isBlocked(r, c) || (solution[r][c] === 1 && board[r][c] !== FILLED) || (solution[r][c] === 0 && board[r][c] === FILLED)) {
+          won = false;
+        }
+      }
+    }
+    if (won) showNextLevelBar();
+  }
   show("gamePage");
 }
 
