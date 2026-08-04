@@ -77,6 +77,11 @@ function renderRank() {
 ${r.level}
 </p>
 
+<p>
+模式:
+${r.mode === 'grass' ? '草方块' : r.mode === 'ice' ? '除冰' : '经典'}
+</p>
+
 
 <p>
 时间:

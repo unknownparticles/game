@@ -106,12 +106,15 @@ body {
 
 .topbar {
   width: 100%;
-
   display: flex;
-
   justify-content: space-between;
-
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.topbar h2 {
+  margin: 0;
+  font-size: 1.1rem;
 }
 
 .topbar button {
@@ -480,6 +483,11 @@ body {
     font-size: 14px;
   }
 
+  .cell.grass,
+  .cell.ice {
+    font-size: 12px;
+  }
+
   .col-hint {
     height: 75px;
   }
@@ -491,4 +499,74 @@ body {
 
     font-size: 10px;
   }
+}
+
+
+/* 模式 */
+.mode-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  white-space: nowrap;
+}
+.mode-badge[data-mode="grass"] {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #bbf7d0;
+}
+.mode-badge[data-mode="ice"] {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
+}
+.mode-tip {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  max-width: 520px;
+  line-height: 1.5;
+}
+.level-mode-info {
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.cell.grass {
+  background: linear-gradient(145deg, #4ade80, #16a34a) !important;
+  color: #052e16 !important;
+  font-size: 16px;
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 1px rgba(20, 83, 45, 0.35), 0 4px 10px rgba(22, 163, 74, 0.25) !important;
+}
+.cell.ice {
+  background: linear-gradient(145deg, #e0f2fe, #38bdf8) !important;
+  color: #0c4a6e !important;
+  font-size: 16px;
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 1px rgba(3, 105, 161, 0.25), 0 4px 12px rgba(56, 189, 248, 0.35) !important;
+}
+.cell.hazard-clear {
+  animation: hazardClear 0.45s ease;
+}
+@keyframes hazardClear {
+  0% { transform: scale(0.7); filter: brightness(1.4); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.row-hint.hint-hidden,
+.col-hint.hint-hidden {
+  opacity: 0.85;
+}
+.number.hidden-number {
+  background: linear-gradient(145deg, #6b7280, #4b5563) !important;
+  color: #e5e7eb;
+  min-width: 20px;
+}
+
+/* 首页按钮多一些时更紧凑 */
+#home button {
+  width: min(280px, 92vw);
 }

@@ -21,14 +21,17 @@
     <div id="home" class="page">
       <h1>🧩 方块推理</h1>
 
-      <p>Nonogram 数织挑战</p>
+      <p>Nonogram 数织挑战 · 支持经典 / 草方块 / 除冰</p>
 
-      <button onclick="startGame()">▶ 开始游戏</button>
-
-      <button onclick="showLevels()">📚 关卡</button>
-
-      <button onclick="dailyGame()">🔥 每日挑战</button>
-
+      <button onclick="startGame('classic')">▶ 经典模式</button>
+      <button onclick="startGrassMode()">🌿 草方块模式</button>
+      <button onclick="startIceMode()">🧊 除冰模式</button>
+      <button onclick="showLevels('classic')">📚 经典关卡</button>
+      <button onclick="showLevels('grass')">📚 草地方关卡</button>
+      <button onclick="showLevels('ice')">📚 除冰关卡</button>
+      <button onclick="dailyGame('classic')">🔥 每日经典</button>
+      <button onclick="dailyGame('grass')">🔥 每日草地</button>
+      <button onclick="dailyGame('ice')">🔥 每日除冰</button>
       <button onclick="showRank()">🏆 排行榜</button>
     </div>
 
@@ -36,9 +39,9 @@
 
     <div id="gamePage" class="page hidden">
       <div class="topbar">
-        <button onclick="backHome()">⬅</button>
-
-        <h2>方块推理</h2>
+        <button onclick="backHome()" type="button">⬅</button>
+        <h2 id="gameTitle">方块推理</h2>
+        <span id="modeBadge" class="mode-badge" data-mode="classic">经典模式</span>
       </div>
 
       <div class="status">
@@ -85,7 +88,7 @@
       </div>
 
       <div id="message"></div>
-      <p style="margin-top:8px;color:#94a3b8;font-size:13px;text-align:center;max-width:520px;line-height:1.5;">
+      <p id="modeTip" class="mode-tip">
         操作：单击填充 ■；右键/长按标记 ×。<br>
         点错会扣生命，并立刻标红显示该格正确答案。
       </p>
