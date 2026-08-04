@@ -125,13 +125,13 @@ function updateModeUI() {
   if (tip) {
     if (gameMode === MODE_GRASS) {
       tip.innerHTML =
-        "草方块模式：5×5 草地区不可点击；相邻格被揭示（玩家点击或自动标 ×）后草地消失。<br>有草的行/列数字隐藏；锤子/磁铁/飞机都不能作用于草地或被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
+        "草方块模式：5×5 草地区不可点击；相邻格被揭示（玩家点击或自动标 ×）后草地消失。<br>数字含义：行从左到右、列从上到下的连续实心段；有草的行/列数字隐藏。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
     } else if (gameMode === MODE_ICE) {
       tip.innerHTML =
-        "除冰模式：随机 5 块冰，所在行/列数字隐藏；四周都被揭示（含自动标 ×）后碎裂。<br>锤子/磁铁只能揭示非冰块，飞机只能揭示未被隐藏的行/列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
+        "除冰模式：随机 5 块冰，所在行/列数字隐藏；四周都被揭示（含自动标 ×）后碎裂。<br>数字含义：行从左到右、列从上到下的连续实心段；锤子/磁铁/飞机不能作用于冰块或隐藏行列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
     } else {
       tip.innerHTML =
-        "随机 50~160 方块，答案仅后台保存；左右/上方数字由空格分段生成。<br>操作：单击填充 ■；右键/长按标记 ×。点错会扣生命并标红显示正确答案。";
+        "随机 50~160 方块，答案仅后台保存。<br>数字含义：<strong>行从左到右</strong>、<strong>列从上到下</strong> 的连续实心段长度。<br>操作：单击填充 ■；右键/长按标记 ×。点错会扣生命并标红显示正确答案。";
     }
   }
 }
@@ -425,17 +425,20 @@ function startTimer() {
 // 提示生成
 // ===============================
 
+// 按扫描顺序生成连续实心段数字：
+// - 行：从左到右
+// - 列：从上到下（传入列数组时同样按索引 0→n）
 function getHint(arr) {
   const result = [];
   let count = 0;
-  arr.forEach((v) => {
-    if (v) {
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i]) {
       count++;
     } else if (count) {
       result.push(count);
       count = 0;
     }
-  });
+  }
   if (count) result.push(count);
   return result.length ? result : [0];
 }
@@ -449,6 +452,7 @@ function renderTips() {
   for (let r = 0; r < SIZE; r++) {
     const div = document.createElement("div");
     div.className = "row-hint" + (isRowHidden(r) ? " hint-hidden" : "");
+    div.title = "第 " + (r + 1) + " 行：数字从左到右表示连续实心段";
     if (isRowHidden(r)) {
       const span = document.createElement("span");
       span.className = "number hidden-number";
@@ -456,10 +460,13 @@ function renderTips() {
       span.title = "该行存在草方块/冰块，数字已隐藏";
       div.appendChild(span);
     } else {
-      getHint(solution[r]).forEach((n) => {
+      // 行提示：从左到右
+      const hints = getHint(solution[r]);
+      hints.forEach((n, idx) => {
         const span = document.createElement("span");
         span.className = "number";
         span.innerText = n;
+        span.title = "从左数第 " + (idx + 1) + " 段连续 " + n + " 格";
         div.appendChild(span);
       });
     }
@@ -469,6 +476,7 @@ function renderTips() {
   for (let c = 0; c < SIZE; c++) {
     const div = document.createElement("div");
     div.className = "col-hint" + (isColHidden(c) ? " hint-hidden" : "");
+    div.title = "第 " + (c + 1) + " 列：数字从上到下表示连续实心段";
     if (isColHidden(c)) {
       const span = document.createElement("span");
       span.className = "number hidden-number";
@@ -476,12 +484,15 @@ function renderTips() {
       span.title = "该列存在草方块/冰块，数字已隐藏";
       div.appendChild(span);
     } else {
+      // 列提示：从上到下（r=0 在最上）
       const arr = [];
       for (let r = 0; r < SIZE; r++) arr.push(solution[r][c]);
-      getHint(arr).forEach((n) => {
+      const hints = getHint(arr);
+      hints.forEach((n, idx) => {
         const span = document.createElement("span");
         span.className = "number";
         span.innerText = n;
+        span.title = "从上数第 " + (idx + 1) + " 段连续 " + n + " 格";
         div.appendChild(span);
       });
     }

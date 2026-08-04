@@ -582,3 +582,27 @@ body {
   justify-content: center;
   gap: 16px 24px;
 }
+
+
+.hint-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  justify-content: center;
+  margin: 10px auto 0;
+  max-width: 640px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+.hint-legend strong {
+  color: #f8fafc;
+}
+
+.col-hint {
+  position: relative;
+}
+.row-hint {
+  position: relative;
+}
