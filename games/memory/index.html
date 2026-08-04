@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>记忆翻牌 · 小游戏中心</title>
+  <link rel="stylesheet" href="../../css/style.css" />
+  <style>
+    .memory-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.65rem;
+      width: min(420px, 100%);
+      margin: 0 auto;
+    }
+    .card {
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(160deg, rgba(108,140,255,0.2), rgba(139,92,246,0.12));
+      color: transparent;
+      font-size: clamp(1.4rem, 6vw, 2rem);
+      cursor: pointer;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+    .card.flipped, .card.matched {
+      color: var(--text);
+      background: rgba(255,255,255,0.08);
+    }
+    .card.matched {
+      border-color: rgba(52, 211, 153, 0.5);
+      background: rgba(52, 211, 153, 0.15);
+    }
+    .card:disabled { cursor: default; }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <div class="topbar">
+      <button class="btn" type="button" data-back-home>← 返回首页</button>
+      <h1>记忆翻牌</h1>
+      <button class="btn btn-primary" id="restartBtn" type="button">重新开始</button>
+    </div>
+    <section class="panel">
+      <div class="score-row">
+        <div class="score-box"><span>步数</span><strong id="moves">0</strong></div>
+        <div class="score-box"><span>配对</span><strong id="pairs">0/8</strong></div>
+        <div class="score-box"><span>最佳</span><strong id="best">-</strong></div>
+      </div>
+      <div class="memory-board" id="board" aria-label="记忆翻牌棋盘"></div>
+      <p class="status" id="status">翻开两张卡片寻找配对</p>
+    </section>
+  </main>
+  <script src="../../js/common.js"></script>
+  <script>
+    const icons = ["🍎","🍋","🍇","🍓","🍒","🥝","🍑","🍉"];
+    const boardEl = document.getElementById("board");
+    const movesEl = document.getElementById("moves");
+    const pairsEl = document.getElementById("pairs");
+    const bestEl = document.getElementById("best");
+    const statusEl = document.getElementById("status");
+    const BEST_KEY = "gc_memory_best";
+    let deck, first, lock, moves, pairs, best;
+
+    best = GameCenter.storage.get(BEST_KEY, null);
+    bestEl.textContent = best == null ? "-" : best;
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function start() {
+      deck = shuffle([...icons, ...icons].map((icon, i) => ({ id: i, icon, matched: false })));
+      first = null;
+      lock = false;
+      moves = 0;
+      pairs = 0;
+      movesEl.textContent = "0";
+      pairsEl.textContent = "0/8";
+      statusEl.textContent = "翻开两张卡片寻找配对";
+      boardEl.innerHTML = "";
+      deck.forEach((card, index) => {
+        const btn = document.createElement("button");
+        btn.className = "card";
+        btn.type = "button";
+        btn.dataset.index = index;
+        btn.textContent = "?";
+        btn.addEventListener("click", () => flip(index, btn));
+        boardEl.appendChild(btn);
+      });
+    }
+
+    function flip(index, btn) {
+      const card = deck[index];
+      if (lock || card.matched || btn.classList.contains("flipped")) return;
+      btn.classList.add("flipped");
+      btn.textContent = card.icon;
+      if (!first) {
+        first = { index, btn };
+        return;
+      }
+      moves += 1;
+      movesEl.textContent = moves;
+      if (deck[first.index].icon === card.icon) {
+        card.matched = true;
+        deck[first.index].matched = true;
+        btn.classList.add("matched");
+        first.btn.classList.add("matched");
+        pairs += 1;
+        pairsEl.textContent = pairs + "/8";
+        first = null;
+        if (pairs === 8) {
+          statusEl.textContent = "全部配对成功！";
+          if (best == null || moves < best) {
+            best = moves;
+            bestEl.textContent = best;
+            GameCenter.storage.set(BEST_KEY, best);
+          }
+        } else {
+          statusEl.textContent = "配对成功，继续！";
+        }
+      } else {
+        lock = true;
+        statusEl.textContent = "再试一次";
+        const prev = first;
+        first = null;
+        setTimeout(() => {
+          btn.classList.remove("flipped");
+          prev.btn.classList.remove("flipped");
+          btn.textContent = "?";
+          prev.btn.textContent = "?";
+          lock = false;
+        }, 550);
+      }
+    }
+
+    document.getElementById("restartBtn").addEventListener("click", start);
+    start();
+  </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>小游戏中心</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-badge">🎮 静态小游戏平台</div>
+      <h1>小游戏中心</h1>
+      <p>适配手机与 PC 的轻量游戏合集。点击卡片进入对应游戏，游戏内可随时返回首页。</p>
+      <div class="stats">
+        <div class="stat"><strong>5</strong><span>内置游戏</span></div>
+        <div class="stat"><strong>0</strong><span>安装依赖</span></div>
+        <div class="stat"><strong>100%</strong><span>静态可部署</span></div>
+      </div>
+    </section>
+
+    <section class="game-grid" aria-label="游戏列表">
+      <a class="game-card" href="games/snake/index.html" style="--accent: rgba(52, 211, 153, 0.45)">
+        <div class="icon">🐍</div>
+        <h2>贪吃蛇</h2>
+        <p>经典街机玩法，支持键盘与触屏方向键，挑战更长身段。</p>
+        <div class="meta">
+          <span class="pill">休闲</span>
+          <span class="play-link">开始游玩 →</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="games/tictactoe/index.html" style="--accent: rgba(108, 140, 255, 0.5)">
+        <div class="icon">⭕</div>
+        <h2>井字棋</h2>
+        <p>人机对战三连棋，适合碎片时间快速开一局。</p>
+        <div class="meta">
+          <span class="pill">策略</span>
+          <span class="play-link">开始游玩 →</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="games/memory/index.html" style="--accent: rgba(251, 191, 36, 0.45)">
+        <div class="icon">🃏</div>
+        <h2>记忆翻牌</h2>
+        <p>翻开卡片寻找配对，训练注意力与短期记忆。</p>
+        <div class="meta">
+          <span class="pill">益智</span>
+          <span class="play-link">开始游玩 →</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="games/2048/index.html" style="--accent: rgba(248, 113, 113, 0.42)">
+        <div class="icon">🔢</div>
+        <h2>2048</h2>
+        <p>滑动合并相同数字，冲击 2048 与更高纪录。</p>
+        <div class="meta">
+          <span class="pill">益智</span>
+          <span class="play-link">开始游玩 →</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="games/breakout/index.html" style="--accent: rgba(139, 92, 246, 0.5)">
+        <div class="icon">🧱</div>
+        <h2>打砖块</h2>
+        <p>移动挡板击球消砖，支持触屏拖动与键盘操作。</p>
+        <div class="meta">
+          <span class="pill">动作</span>
+          <span class="play-link">开始游玩 →</span>
+        </div>
+      </a>
+    </section>
+
+    <p class="footer-note">提示：可直接部署到任意静态托管，或本地启动 HTTP 服务预览。</p>
+  </main>
+</body>
+</html>

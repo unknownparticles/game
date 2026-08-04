@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>井字棋 · 小游戏中心</title>
+  <link rel="stylesheet" href="../../css/style.css" />
+  <style>
+    .ttt-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.65rem;
+      width: min(360px, 100%);
+      margin: 0 auto;
+    }
+    .cell {
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: clamp(2rem, 10vw, 3rem);
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .cell:disabled {
+      cursor: default;
+      opacity: 1;
+    }
+    .cell.win {
+      background: rgba(52, 211, 153, 0.18);
+      border-color: rgba(52, 211, 153, 0.45);
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <div class="topbar">
+      <button class="btn" type="button" data-back-home>← 返回首页</button>
+      <h1>井字棋</h1>
+      <button class="btn btn-primary" id="restartBtn" type="button">再来一局</button>
+    </div>
+    <section class="panel">
+      <div class="score-row">
+        <div class="score-box"><span>你 (X)</span><strong id="you">0</strong></div>
+        <div class="score-box"><span>平局</span><strong id="draw">0</strong></div>
+        <div class="score-box"><span>电脑 (O)</span><strong id="cpu">0</strong></div>
+      </div>
+      <div class="ttt-board" id="board" role="grid" aria-label="井字棋棋盘"></div>
+      <p class="status" id="status">轮到你落子</p>
+      <p class="hint">点击空格落子，电脑会自动应手。</p>
+    </section>
+  </main>
+  <script src="../../js/common.js"></script>
+  <script>
+    const boardEl = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+    const youEl = document.getElementById("you");
+    const drawEl = document.getElementById("draw");
+    const cpuEl = document.getElementById("cpu");
+    const lines = [
+      [0,1,2],[3,4,5],[6,7,8],
+      [0,3,6],[1,4,7],[2,5,8],
+      [0,4,8],[2,4,6],
+    ];
+    let cells, locked, scores;
+
+    scores = GameCenter.storage.get("gc_ttt_scores", { you: 0, draw: 0, cpu: 0 });
+    youEl.textContent = scores.you;
+    drawEl.textContent = scores.draw;
+    cpuEl.textContent = scores.cpu;
+
+    function createBoard() {
+      boardEl.innerHTML = "";
+      cells = Array(9).fill("");
+      locked = false;
+      statusEl.textContent = "轮到你落子";
+      for (let i = 0; i < 9; i++) {
+        const btn = document.createElement("button");
+        btn.className = "cell";
+        btn.type = "button";
+        btn.dataset.i = i;
+        btn.addEventListener("click", () => play(i));
+        boardEl.appendChild(btn);
+      }
+    }
+
+    function winner(board) {
+      for (const [a, b, c] of lines) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          return { mark: board[a], line: [a, b, c] };
+        }
+      }
+      if (board.every(Boolean)) return { mark: "draw", line: [] };
+      return null;
+    }
+
+    function render(win) {
+      [...boardEl.children].forEach((el, i) => {
+        el.textContent = cells[i];
+        el.disabled = locked || Boolean(cells[i]);
+        el.classList.toggle("win", win && win.line.includes(i));
+      });
+    }
+
+    function finish(result) {
+      locked = true;
+      if (result.mark === "X") {
+        scores.you += 1;
+        youEl.textContent = scores.you;
+        statusEl.textContent = "你赢了！";
+      } else if (result.mark === "O") {
+        scores.cpu += 1;
+        cpuEl.textContent = scores.cpu;
+        statusEl.textContent = "电脑获胜";
+      } else {
+        scores.draw += 1;
+        drawEl.textContent = scores.draw;
+        statusEl.textContent = "平局";
+      }
+      GameCenter.storage.set("gc_ttt_scores", scores);
+      render(result);
+    }
+
+    function bestMove() {
+      const empty = cells.map((v, i) => (v ? null : i)).filter((v) => v != null);
+      for (const mark of ["O", "X"]) {
+        for (const i of empty) {
+          const trial = cells.slice();
+          trial[i] = mark;
+          if (winner(trial)?.mark === mark) return i;
+        }
+      }
+      if (empty.includes(4)) return 4;
+      const corners = empty.filter((i) => [0, 2, 6, 8].includes(i));
+      if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+      return empty[Math.floor(Math.random() * empty.length)];
+    }
+
+    function play(i) {
+      if (locked || cells[i]) return;
+      cells[i] = "X";
+      let result = winner(cells);
+      if (result) return finish(result);
+      const ai = bestMove();
+      cells[ai] = "O";
+      result = winner(cells);
+      if (result) return finish(result);
+      statusEl.textContent = "轮到你落子";
+      render(null);
+    }
+
+    document.getElementById("restartBtn").addEventListener("click", createBoard);
+    createBoard();
+  </script>
+</body>
+</html>

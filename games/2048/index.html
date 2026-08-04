@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>2048 · 小游戏中心</title>
+  <link rel="stylesheet" href="../../css/style.css" />
+  <style>
+    .grid-2048 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem;
+      width: min(420px, 100%);
+      margin: 0 auto;
+      padding: 0.6rem;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      touch-action: none;
+    }
+    .tile {
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.05);
+      font-size: clamp(1.1rem, 5vw, 1.8rem);
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .t2 { background: #334155; }
+    .t4 { background: #475569; }
+    .t8 { background: #b45309; }
+    .t16 { background: #c2410c; }
+    .t32 { background: #dc2626; }
+    .t64 { background: #e11d48; }
+    .t128 { background: #7c3aed; font-size: clamp(1rem, 4.4vw, 1.5rem); }
+    .t256 { background: #6d28d9; font-size: clamp(1rem, 4.4vw, 1.5rem); }
+    .t512 { background: #4f46e5; font-size: clamp(1rem, 4.4vw, 1.5rem); }
+    .t1024 { background: #2563eb; font-size: clamp(0.9rem, 3.8vw, 1.25rem); }
+    .t2048, .t4096, .t8192 { background: #059669; font-size: clamp(0.85rem, 3.5vw, 1.15rem); }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <div class="topbar">
+      <button class="btn" type="button" data-back-home>← 返回首页</button>
+      <h1>2048</h1>
+      <button class="btn btn-primary" id="restartBtn" type="button">重新开始</button>
+    </div>
+    <section class="panel">
+      <div class="score-row">
+        <div class="score-box"><span>得分</span><strong id="score">0</strong></div>
+        <div class="score-box"><span>最高分</span><strong id="best">0</strong></div>
+        <div class="score-box"><span>最大块</span><strong id="maxTile">0</strong></div>
+      </div>
+      <div class="grid-2048" id="board" aria-label="2048 棋盘"></div>
+      <div class="controls" aria-label="方向控制">
+        <span class="spacer"></span>
+        <button class="btn" type="button" data-dir="up">上</button>
+        <span class="spacer"></span>
+        <button class="btn" type="button" data-dir="left">左</button>
+        <button class="btn" type="button" data-dir="down">下</button>
+        <button class="btn" type="button" data-dir="right">右</button>
+      </div>
+      <p class="status" id="status">滑动或使用方向键合并方块</p>
+      <p class="hint">电脑：方向键。手机：滑动棋盘或点下方按钮。</p>
+    </section>
+  </main>
+  <script src="../../js/common.js"></script>
+  <script>
+    const boardEl = document.getElementById("board");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const maxEl = document.getElementById("maxTile");
+    const statusEl = document.getElementById("status");
+    const BEST_KEY = "gc_2048_best";
+    let grid, score, best, touchStart;
+
+    best = GameCenter.storage.get(BEST_KEY, 0);
+    bestEl.textContent = best;
+
+    function emptyCells() {
+      const list = [];
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (!grid[r][c]) list.push([r, c]);
+      return list;
+    }
+
+    function addRandom() {
+      const list = emptyCells();
+      if (!list.length) return;
+      const [r, c] = list[Math.floor(Math.random() * list.length)];
+      grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+    }
+
+    function render() {
+      boardEl.innerHTML = "";
+      let maxTile = 0;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const v = grid[r][c];
+          maxTile = Math.max(maxTile, v);
+          const div = document.createElement("div");
+          div.className = "tile" + (v ? " t" + Math.min(v, 8192) : "");
+          div.textContent = v || "";
+          boardEl.appendChild(div);
+        }
+      }
+      scoreEl.textContent = score;
+      maxEl.textContent = maxTile;
+      if (score > best) {
+        best = score;
+        bestEl.textContent = best;
+        GameCenter.storage.set(BEST_KEY, best);
+      }
+    }
+
+    function slide(line) {
+      const nums = line.filter(Boolean);
+      const out = [];
+      let gained = 0;
+      for (let i = 0; i < nums.length; i++) {
+        if (nums[i] === nums[i + 1]) {
+          out.push(nums[i] * 2);
+          gained += nums[i] * 2;
+          i++;
+        } else {
+          out.push(nums[i]);
+        }
+      }
+      while (out.length < 4) out.push(0);
+      return { line: out, gained, changed: out.some((v, i) => v !== line[i]) };
+    }
+
+    function move(dir) {
+      let changed = false;
+      let gained = 0;
+      const next = grid.map((row) => row.slice());
+      const apply = (getter, setter) => {
+        for (let i = 0; i < 4; i++) {
+          const line = getter(i);
+          const res = slide(line);
+          setter(i, res.line);
+          gained += res.gained;
+          changed = changed || res.changed;
+        }
+      };
+      if (dir === "left") apply((r) => next[r], (r, line) => { next[r] = line; });
+      if (dir === "right") apply((r) => next[r].slice().reverse(), (r, line) => { next[r] = line.reverse(); });
+      if (dir === "up") apply((c) => [next[0][c], next[1][c], next[2][c], next[3][c]], (c, line) => {
+        for (let r = 0; r < 4; r++) next[r][c] = line[r];
+      });
+      if (dir === "down") apply((c) => [next[3][c], next[2][c], next[1][c], next[0][c]], (c, line) => {
+        for (let r = 0; r < 4; r++) next[3 - r][c] = line[r];
+      });
+      if (!changed) return;
+      grid = next;
+      score += gained;
+      addRandom();
+      render();
+      if (won()) statusEl.textContent = "太强了！已经达到 2048";
+      else if (lost()) statusEl.textContent = "没有可移动步数，游戏结束";
+      else statusEl.textContent = "继续合并更高数字";
+    }
+
+    function won() {
+      return grid.some((row) => row.some((v) => v >= 2048));
+    }
+
+    function lost() {
+      if (emptyCells().length) return false;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const v = grid[r][c];
+          if ((c < 3 && grid[r][c + 1] === v) || (r < 3 && grid[r + 1][c] === v)) return false;
+        }
+      }
+      return true;
+    }
+
+    function start() {
+      grid = Array.from({ length: 4 }, () => Array(4).fill(0));
+      score = 0;
+      addRandom();
+      addRandom();
+      statusEl.textContent = "滑动或使用方向键合并方块";
+      render();
+    }
+
+    const keyMap = {
+      ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+      w: "up", s: "down", a: "left", d: "right",
+      W: "up", S: "down", A: "left", D: "right",
+    };
+    window.addEventListener("keydown", (e) => {
+      const dir = keyMap[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      move(dir);
+    });
+    document.querySelectorAll("[data-dir]").forEach((btn) => {
+      btn.addEventListener("click", () => move(btn.dataset.dir));
+    });
+    boardEl.addEventListener("touchstart", (e) => {
+      const t = e.changedTouches[0];
+      touchStart = { x: t.clientX, y: t.clientY };
+    }, { passive: true });
+    boardEl.addEventListener("touchend", (e) => {
+      if (!touchStart) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStart.x;
+      const dy = t.clientY - touchStart.y;
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? "right" : "left");
+      else move(dy > 0 ? "down" : "up");
+    }, { passive: true });
+
+    document.getElementById("restartBtn").addEventListener("click", start);
+    start();
+  </script>
+</body>
+</html>

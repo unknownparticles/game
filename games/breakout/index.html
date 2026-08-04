@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>打砖块 · 小游戏中心</title>
+  <link rel="stylesheet" href="../../css/style.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <div class="topbar">
+      <button class="btn" type="button" data-back-home>← 返回首页</button>
+      <h1>打砖块</h1>
+      <button class="btn btn-primary" id="restartBtn" type="button">重新开始</button>
+    </div>
+    <section class="panel">
+      <div class="score-row">
+        <div class="score-box"><span>得分</span><strong id="score">0</strong></div>
+        <div class="score-box"><span>生命</span><strong id="lives">3</strong></div>
+        <div class="score-box"><span>最高分</span><strong id="best">0</strong></div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="board" width="420" height="520" aria-label="打砖块画布"></canvas>
+      </div>
+      <p class="status" id="status">点击或按空格开始</p>
+      <p class="hint">电脑：左右方向键 / A D。手机：在画布上左右拖动挡板。</p>
+    </section>
+  </main>
+  <script src="../../js/common.js"></script>
+  <script>
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const livesEl = document.getElementById("lives");
+    const bestEl = document.getElementById("best");
+    const statusEl = document.getElementById("status");
+    const BEST_KEY = "gc_breakout_best";
+
+    let paddle, ball, bricks, score, lives, best, running, keys, raf;
+
+    best = GameCenter.storage.get(BEST_KEY, 0);
+    bestEl.textContent = best;
+    keys = {};
+
+    function resizeForMobile() {
+      const maxW = Math.min(420, window.innerWidth - 32);
+      const scale = maxW / 420;
+      canvas.style.width = maxW + "px";
+      canvas.style.height = Math.round(520 * scale) + "px";
+    }
+
+    function buildBricks() {
+      const rows = 5, cols = 8;
+      const gap = 6;
+      const top = 56;
+      const brickW = (canvas.width - gap * (cols + 1)) / cols;
+      const brickH = 18;
+      const colors = ["#60a5fa", "#818cf8", "#a78bfa", "#f472b6", "#fb7185"];
+      bricks = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          bricks.push({
+            x: gap + c * (brickW + gap),
+            y: top + r * (brickH + gap),
+            w: brickW,
+            h: brickH,
+            alive: true,
+            color: colors[r],
+          });
+        }
+      }
+    }
+
+    function resetBall() {
+      ball = {
+        x: canvas.width / 2,
+        y: canvas.height - 80,
+        r: 7,
+        vx: (Math.random() > 0.5 ? 1 : -1) * 3.2,
+        vy: -3.6,
+      };
+    }
+
+    function start(full = true) {
+      if (full) {
+        score = 0;
+        lives = 3;
+        scoreEl.textContent = "0";
+        livesEl.textContent = "3";
+        buildBricks();
+      }
+      paddle = { w: 86, h: 12, x: canvas.width / 2 - 43, y: canvas.height - 36, speed: 7 };
+      resetBall();
+      running = false;
+      statusEl.textContent = full ? "点击或按空格开始" : "生命 -1，点击继续";
+      cancelAnimationFrame(raf);
+      draw();
+    }
+
+    function launch() {
+      if (running) return;
+      if (lives <= 0) start(true);
+      running = true;
+      statusEl.textContent = "击碎所有砖块";
+      loop();
+    }
+
+    function loop() {
+      update();
+      draw();
+      if (running) raf = requestAnimationFrame(loop);
+    }
+
+    function update() {
+      if (keys.ArrowLeft || keys.a || keys.A) paddle.x -= paddle.speed;
+      if (keys.ArrowRight || keys.d || keys.D) paddle.x += paddle.speed;
+      paddle.x = GameCenter.clamp(paddle.x, 0, canvas.width - paddle.w);
+
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      if (ball.x < ball.r || ball.x > canvas.width - ball.r) ball.vx *= -1;
+      if (ball.y < ball.r) ball.vy *= -1;
+
+      if (
+        ball.y + ball.r >= paddle.y &&
+        ball.y + ball.r <= paddle.y + paddle.h &&
+        ball.x >= paddle.x &&
+        ball.x <= paddle.x + paddle.w &&
+        ball.vy > 0
+      ) {
+        const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+        ball.vx = hit * 4.2;
+        ball.vy = -Math.abs(ball.vy);
+      }
+
+      bricks.forEach((b) => {
+        if (!b.alive) return;
+        if (
+          ball.x > b.x && ball.x < b.x + b.w &&
+          ball.y - ball.r < b.y + b.h && ball.y + ball.r > b.y
+        ) {
+          b.alive = false;
+          ball.vy *= -1;
+          score += 10;
+          scoreEl.textContent = score;
+          if (score > best) {
+            best = score;
+            bestEl.textContent = best;
+            GameCenter.storage.set(BEST_KEY, best);
+          }
+        }
+      });
+
+      if (bricks.every((b) => !b.alive)) {
+        running = false;
+        statusEl.textContent = "全部清除，胜利！";
+        return;
+      }
+
+      if (ball.y - ball.r > canvas.height) {
+        lives -= 1;
+        livesEl.textContent = lives;
+        running = false;
+        if (lives <= 0) statusEl.textContent = "游戏结束，点击重新开始";
+        else {
+          resetBall();
+          statusEl.textContent = "生命 -1，点击继续";
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      g.addColorStop(0, "#10182f");
+      g.addColorStop(1, "#0a0f1d");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      bricks.forEach((b) => {
+        if (!b.alive) return;
+        ctx.fillStyle = b.color;
+        roundRect(b.x, b.y, b.w, b.h, 6);
+      });
+
+      ctx.fillStyle = "#93c5fd";
+      roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 8);
+
+      ctx.beginPath();
+      ctx.fillStyle = "#f8fafc";
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    window.addEventListener("keydown", (e) => {
+      keys[e.key] = true;
+      if (["ArrowLeft", "ArrowRight", " ", "Spacebar"].includes(e.key)) e.preventDefault();
+      if (e.key === " " || e.key === "Spacebar") launch();
+    });
+    window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      launch();
+      movePaddleTo(e.clientX);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (e.buttons || e.pointerType === "touch") movePaddleTo(e.clientX);
+    });
+
+    function movePaddleTo(clientX) {
+      const rect = canvas.getBoundingClientRect();
+      const x = ((clientX - rect.left) / rect.width) * canvas.width;
+      paddle.x = GameCenter.clamp(x - paddle.w / 2, 0, canvas.width - paddle.w);
+      if (!running) draw();
+    }
+
+    document.getElementById("restartBtn").addEventListener("click", () => start(true));
+    window.addEventListener("resize", resizeForMobile);
+    resizeForMobile();
+    start(true);
+  </script>
+</body>
+</html>
