@@ -87,7 +87,7 @@ button.secondary:hover { background: #666; }
 .col-hints { display: grid; grid-template-columns: repeat(15, var(--cell)); gap: var(--gap); }
 .col-tip { height: 140px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; }
 
-.main { display: flex; align-items: stretch; }
+.main { display: flex; align-items: center; justify-content: center; min-height: 60vh; } display: flex; align-items: stretch; }
 
 .row-hints { width: var(--hint-w); min-width: var(--hint-w); flex-shrink: 0; display: grid; grid-template-columns: var(--hint-w); grid-template-rows: repeat(15, var(--cell)); gap: var(--gap); }
 
@@ -274,6 +274,35 @@ input:checked + .slider:before {
     <button id="btnModeGrass" class="mode-btn active">草方块</button>
     <button id="btnModeIce" class="mode-btn">冰方块</button>
     <button id="btnModeNormal" class="mode-btn">普通模式</button>
+  <input id="seedInput" type="text" placeholder="输入种子..." style="width:160px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#eee;font-size:13px;">
+  <button id="btnLoadSeed" class="secondary">加载种子</button>
+  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
+  <button id="btnLoadSeed" class="secondary">加载种子</button>
+  </div>
+  <div class="draw-mode-switch">
+    <label class="switch">
+      <input type="checkbox" id="xMode" checked>
+      <span class="slider"></span>
+    </label>
+    <span>打X模式</span>
+  </div>
+  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
+  <button id="btnLoadSeed" class="secondary">加载种子</button>
+  <button id="btnGenerate" type="button">生成新关卡</button>
+  <button id="btnReset" class="secondary" type="button">清空棋盘</button>
+  <button id="btnRecords" class="secondary" type="button">生成记录</button>
+  <button id="btnExport" class="secondary" type="button">导出文本</button>
+  <button id="btnCopy" class="secondary" type="button">复制种子</button>
+  <span id="status" class="status">准备生成…</span>
+</div>
+  <div class="mode-toggle">
+    <button id="btnModeGrass" class="mode-btn active">草方块</button>
+    <button id="btnModeIce" class="mode-btn">冰方块</button>
+    <button id="btnModeNormal" class="mode-btn">普通模式</button>
+  <input id="seedInput" type="text" placeholder="输入种子..." style="width:160px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#eee;font-size:13px;">
+  <button id="btnLoadSeed" class="secondary">加载种子</button>
+  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
+  <button id="btnLoadSeed" class="secondary">加载种子</button>
   </div>
   <div class="draw-mode-switch">
     <label class="switch">
@@ -1271,7 +1300,64 @@ function getTerrainSVG(type, unlocked, progress) {
 // 初始化
 document.addEventListener("DOMContentLoaded", () => {
   // 添加复制按钮事件
-  const copyBtn = document.getElementById("btnCopy");
+  const seedInput = document.getElementById("seedInput");
+const loadSeedBtn = document.getElementById("btnLoadSeed");
+
+function loadLevelBySeed(seedStr) {
+  if (!seedStr) return;
+  const seed = parseFloat(seedStr);
+  if (isNaN(seed)) {
+    statusEl.textContent = "种子无效";
+    return;
+  }
+  // Simple way: use Math.random() seeded by the input
+  currentSeed = seedStr;
+  // Regenerate with the given seed
+  const { grid, filled, target } = generateSolutionWithSeed(seed);
+  solution = grid;
+  rows = solution.map(row => getHintBlocks(row));
+  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+  createTerrain();
+  createBoard();
+  createHints();
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      renderCell(cells[r][c], r, c);
+    }
+  }
+  refreshHints();
+  exportLevelText();
+  statusEl.textContent = ;
+}
+
+function generateSolutionWithSeed(seed) {
+  // Simple seeded random (can be improved with proper PRNG)
+  const rng = (seed) => {
+    let x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  let grid = [];
+  const density = 0.5; // adjust density if needed
+  for (let r = 0; r < SIZE; r++) {
+    grid[r] = [];
+    for (let c = 0; c < SIZE; c++) {
+      grid[r][c] = Math.floor(rng(seed + r * 100 + c) * 2);
+    }
+  }
+  // Ensure roughly the right number of blocks
+  let filled = grid.flat().filter(v => v === 1).length;
+  return { grid, filled, target: filled };
+}
+
+loadSeedBtn.addEventListener("click", () => {
+  loadLevelBySeed(seedInput.value.trim());
+});
+
+const seedInput = document.getElementById("seedInput");
+seedInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") loadLevelBySeed(seedInput.value.trim());
+});
+
   if (copyBtn) {
     copyBtn.addEventListener("click", copyToClipboard);
   }
@@ -1354,7 +1440,22 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     hideLoading();
     newLevel();
-    statusEl.textContent = "游戏已就绪";
+      // Seed input
+  const seedInput = document.getElementById("seedInput");
+  const loadSeedBtn = document.getElementById("btnLoadSeed");
+  if (seedInput && loadSeedBtn) {
+    loadSeedBtn.addEventListener("click", () => {
+      const seedStr = seedInput.value.trim();
+      if (seedStr) loadLevelBySeed(seedStr);
+    });
+    seedInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        const seedStr = seedInput.value.trim();
+        if (seedStr) loadLevelBySeed(seedStr);
+      }
+    });
+  }
+  statusEl.textContent = "游戏已就绪";
   }, 80); // 极短延迟
 });
 </script>
