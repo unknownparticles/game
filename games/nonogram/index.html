@@ -1148,7 +1148,7 @@ function generateFromSeed() {
   updateHintStyles();
   exportLevelText();
   statusEl.classList.remove("win");
-  statusEl.textContent = ;
+  statusEl.textContent = "请输入种子";
 
   isGenerating = false;
   btnGenerate.disabled = false;
@@ -1183,7 +1183,7 @@ function generateFromSeed() {
   updateHintStyles();
   exportLevelText();
   statusEl.classList.remove("win");
-  statusEl.textContent = ;
+  statusEl.textContent = "请输入种子";
 
   isGenerating = false;
   btnGenerate.disabled = false;
@@ -1391,7 +1391,7 @@ function loadLevelBySeed(seedStr) {
   }
   refreshHints();
   exportLevelText();
-  statusEl.textContent = ;
+  statusEl.textContent = "请输入种子";
 }
 
 function generateSolutionWithSeed(seed) {
