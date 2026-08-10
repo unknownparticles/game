@@ -285,7 +285,7 @@ input:checked + .slider:before {
   <button id="btnGenerate" type="button">生成新关卡</button>
   <button id="btnReset" class="secondary" type="button">清空棋盘</button>
   <button id="btnRecords" class="secondary" type="button">生成记录</button>
-  <button id="btnExport" class="secondary" type="button">导出数据</button>
+  <button id="btnExport" class="secondary" type="button">导出文本</button>
   <button id="btnCopy" class="secondary" type="button">复制 JSON</button>
   <span id="status" class="status">准备生成…</span>
 </div>
@@ -305,7 +305,7 @@ input:checked + .slider:before {
 
 <div class="export-box">
   <div style="margin-bottom:6px;font-size:13px;color:#aaa;">
-    游戏可识别格式（rows / cols 提示 + 后台 solution，不展示答案）
+    点击下方按钮可导出当前关卡的纯文本解决方案（每行15个0/1，用空格分隔）
   </div>
   <textarea id="exportText" readonly></textarea>
 </div>
@@ -1111,6 +1111,25 @@ function hideLoading() {
 }
 
 // 复制功能
+
+function exportLevelText() {
+  const grid = solution; // solution is already 15x15
+  let text = '15x15 数织解决方案：
+';
+  grid.forEach(row => {
+    text += row.map(v => v ? '1' : '0').join(' ') + '
+';
+  });
+  text += '
+提示（行）：
+' + JSON.stringify(rows, null, 2);
+  text += '
+
+提示（列）：
+' + JSON.stringify(cols, null, 2);
+  exportTextEl.value = text;
+}
+
 function copyToClipboard() {
   const text = exportTextEl.value;
   if (!text) return;
