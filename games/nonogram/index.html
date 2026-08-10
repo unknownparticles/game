@@ -1090,17 +1090,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 添加复制按钮事件
   
-function loadLevelBySeed(seedStr) {
-  if (!seedStr) return;
-  const seed = parseFloat(seedStr);
-  if (isNaN(seed)) {
-    statusEl.textContent = "种子无效";
+function loadLevelBySeed(code) {
+  if (!code) return;
+  const parts = code.split(':');
+  if (parts.length < 2) {
+    statusEl.textContent = "格式错误";
     return;
   }
-  // Simple way: use Math.random() seeded by the input
-  currentSeed = seedStr;
-  // Regenerate with the given seed
-  const { grid, filled, target } = generateSolutionWithSeed(seed);
+
+  const mode = parseInt(parts[0]) || 0;
+  const seed = parseInt(parts[1]) || Date.now();
+  const params = parts[2] || '';
+
+  statusEl.textContent = `正在加载模式${mode} (Seed=${seed})...`;
+
+  const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
+
   solution = grid;
   rows = solution.map(row => getHintBlocks(row));
   cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
@@ -1114,26 +1119,81 @@ function loadLevelBySeed(seedStr) {
   }
   refreshHints();
   exportLevelText();
-  statusEl.textContent = "请输入种子";
+  statusEl.textContent = `已加载模式${mode} (Seed=${seed}) 填充: ${filled}`;
 }
 
-function generateSolutionWithSeed(seed) {
-  // Simple seeded random (can be improved with proper PRNG)
-  const rng = (seed) => {
-    let x = Math.sin(seed) * 10000;
+// ==================== 新版关卡生成系统 ====================
+// 使用 "模式ID + Seed + 参数" 编码方案
+// 目标：同一Seed + 模式 = 同一关卡
+// 紧凑数据结构 < 10字节
+
+function generateSolutionWithSeed(mode, seed) {
+  const rng = (s) => {
+    let x = Math.sin(s) * 10000;
     return x - Math.floor(x);
   };
+
   let grid = [];
-  const density = 0.5; // adjust density if needed
-  for (let r = 0; r < SIZE; r++) {
-    grid[r] = [];
-    for (let c = 0; c < SIZE; c++) {
-      grid[r][c] = Math.floor(rng(seed + r * 100 + c) * 2);
-    }
+  let filled = 0;
+  let target = 0;
+
+  switch (mode) {
+    case 0: // 普通模式 - 随机密度布局
+      for (let r = 0; r < SIZE; r++) {
+        grid[r] = [];
+        for (let c = 0; c < SIZE; c++) {
+          const val = Math.floor(rng(seed + r * 100 + c) * 2);
+          grid[r][c] = val;
+          if (val === 1) filled++;
+        }
+      }
+      target = Math.floor(SIZE * SIZE * 0.48); // 约48% 填充
+      break;
+
+    case 1: // 冰块模式 - 5个随机离散冰块
+      const positions = [];
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (r < 2 || r > SIZE - 3 || c < 2 || c > SIZE - 3) continue; // 避免边缘
+          positions.push([r, c]);
+        }
+      }
+      const shuffled = positions.sort(() => rng(seed) - 0.5);
+      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      for (let i = 0; i < 5; i++) {
+        const [r, c] = shuffled[i];
+        grid[r][c] = 1;
+        filled++;
+      }
+      target = 5;
+      break;
+
+    case 2: // 草地模式 - 单个5×5连续区域
+      const sr = Math.floor(rng(seed) * (SIZE - 4));
+      const sc = Math.floor(rng(seed + 1) * (SIZE - 4));
+      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      for (let r = sr; r < sr + 5; r++) {
+        for (let c = sc; c < sc + 5; c++) {
+          grid[r][c] = 1;
+        }
+      }
+      filled = 25;
+      target = 25;
+      break;
+
+    default:
+      // fallback 普通模式
+      for (let r = 0; r < SIZE; r++) {
+        grid[r] = [];
+        for (let c = 0; c < SIZE; c++) {
+          grid[r][c] = Math.floor(rng(seed + r * 100 + c) * 2);
+          if (grid[r][c] === 1) filled++;
+        }
+      }
+      target = Math.floor(SIZE * SIZE * 0.48);
   }
-  // Ensure roughly the right number of blocks
-  let filled = grid.flat().filter(v => v === 1).length;
-  return { grid, filled, target: filled };
+
+  return { grid, filled, target };
 }
 
 btnLoadSeed.addEventListener("click", () => {
@@ -1184,8 +1244,13 @@ seedInput.addEventListener("keypress", (e) => {
 
   function newLevel() {
     statusEl.textContent = "正在生成关卡...";
-    const seed = Math.random() * 1000000;
-    const { grid, filled, target } = generateSolutionWithSeed(seed);
+
+    // 随机选择模式 (0=普通, 1=冰块, 2=草地)
+    const mode = Math.floor(Math.random() * 3);
+    const seed = Math.floor(Math.random() * 99999999) + 10000000; // 8位种子
+
+    const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
+
     solution = grid;
     rows = solution.map(row => getHintBlocks(row));
     cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
@@ -1199,7 +1264,7 @@ seedInput.addEventListener("keypress", (e) => {
     }
     refreshHints();
     exportLevelText();
-    statusEl.textContent = `关卡生成完成！填充: ${filled}`;
+    statusEl.textContent = `关卡生成完成！填充: ${filled} (模式${mode}, Seed=${seed})`;
   }
 
   function exportLevelText() {
@@ -1227,7 +1292,9 @@ seedInput.addEventListener("keypress", (e) => {
     if (btnGenerate) btnGenerate.disabled = true;
     if (btnRecords) btnRecords.disabled = true;
     if (btnReset) btnReset.disabled = true;
+
     newLevel();
+
     setTimeout(() => {
       isGenerating = false;
       if (btnGenerate) btnGenerate.disabled = false;
