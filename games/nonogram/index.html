@@ -372,7 +372,6 @@ let cols = [];
 let cells = [];
 let currentMode = 0; // 0=grass, 1=ice
 let generationHistory = [];
-let currentSeed = 0;
 let isGenerating = false;
 let mobileXMode = true;
 
@@ -1198,7 +1197,6 @@ function newLevel() {
 
   const modeNames = ['草方块', '冰方块', '普通模式'];
   const { grid, filled, target } = generateSolution();
-currentSeed = Math.random().toFixed(10);
 currentSeed = Math.random().toFixed(10);
   solution = grid;
   rows = solution.map(row => getHintBlocks(row));
