@@ -78,7 +78,7 @@ button.secondary:hover { background: #666; }
 .status { font-size: 14px; color: #bbb; }
 .status.win { color: #4ade80; font-weight: bold; }
 
-.game-wrap { overflow: auto; max-width: 100%; padding: 8px; z-index: 1; }
+.game-wrap { overflow: hidden; max-width: 100%; padding: 8px; z-index: 1; touch-action: none; }
 
 .game { display: inline-flex; flex-direction: column; width: max-content; }
 
@@ -106,6 +106,8 @@ button.secondary:hover { background: #666; }
 }
 
 #board {
+  max-width: 100%;
+  touch-action: none;
   border: 3px solid #333;
   border-top: none;
   border-left: none;
@@ -150,6 +152,10 @@ button.secondary:hover { background: #666; }
 }
 
 @media (max-width: 700px) {
+  :root { --cell: 18px; --hint-w: 280px; }
+  .game-wrap { padding: 4px; }
+  .cell { font-size: 14px; }
+  .col-tip { height: 50px; align-items: flex-end; gap: 2px; }
   :root { --cell: 18px; --hint-w: 280px; }
   .number { min-width: 14px; height: 16px; padding: 0 2px; font-size: 10px; }
   .cell { font-size: 14px; }
