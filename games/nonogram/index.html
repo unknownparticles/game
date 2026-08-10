@@ -288,7 +288,7 @@ input:checked + .slider:before {
   </div>
   <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
   <button id="btnLoadSeed" class="secondary">加载种子</button>
-  <button id="btnGenerate" type="button">生成新关卡</button>
+  <input id="seedInput" type="text" placeholder="输入种子" style="width: 180px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;"><button id="btnGenerate" type="button">生成新关卡</button>
   <button id="btnReset" class="secondary" type="button">清空棋盘</button>
   <button id="btnRecords" class="secondary" type="button">生成记录</button>
   <button id="btnExport" class="secondary" type="button">导出文本</button>
@@ -311,7 +311,7 @@ input:checked + .slider:before {
     </label>
     <span>打X模式</span>
   </div>
-  <button id="btnGenerate" type="button">生成新关卡</button>
+  <input id="seedInput" type="text" placeholder="输入种子" style="width: 180px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;"><button id="btnGenerate" type="button">生成新关卡</button>
   <button id="btnReset" class="secondary" type="button">清空棋盘</button>
   <button id="btnRecords" class="secondary" type="button">生成记录</button>
   <button id="btnExport" class="secondary" type="button">导出文本</button>
@@ -1127,6 +1127,73 @@ function generateSolution() {
   return { grid, filled, target: filled };
 }
 
+function generateFromSeed() {
+  const seedStr = seedInput.value.trim();
+  if (!seedStr) {
+    statusEl.textContent = "请输入种子";
+    return;
+  }
+  isGenerating = true;
+  btnGenerate.disabled = true;
+  btnReset.disabled = true;
+  btnRecords.disabled = true;
+  seedInput.disabled = true;
+
+  const modeNames = ['草方块', '冰方块', '普通模式'];
+  const { grid, filled, target } = generateSolution();
+  solution = grid;
+  rows = solution.map(row => getHintBlocks(row));
+  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+  createTerrain();
+  createBoard();
+  createHints();
+  updateHintStyles();
+  exportLevelText();
+  statusEl.classList.remove("win");
+  statusEl.textContent = ;
+
+  isGenerating = false;
+  btnGenerate.disabled = false;
+  btnReset.disabled = false;
+  btnRecords.disabled = false;
+  seedInput.disabled = false;
+}
+  const seedStr = seedInput.value.trim();
+  if (!seedStr) {
+    statusEl.textContent = "请输入种子";
+    return;
+  }
+  isGenerating = true;
+  btnGenerate.disabled = true;
+  btnReset.disabled = true;
+  btnRecords.disabled = true;
+  seedInput.disabled = true;
+
+  // Simple seeded random (using seed as base)
+  let seed = parseFloat(seedStr);
+  if (isNaN(seed)) seed = Math.random();
+  Math.seedrandom(seed); // note: this requires a seeded random lib, fallback to Math.random
+
+  const modeNames = ['草方块', '冰方块', '普通模式'];
+  const { grid, filled, target } = generateSolution();
+  solution = grid;
+  rows = solution.map(row => getHintBlocks(row));
+  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+  createTerrain();
+  createBoard();
+  createHints();
+  updateHintStyles();
+  exportLevelText();
+  statusEl.classList.remove("win");
+  statusEl.textContent = ;
+
+  isGenerating = false;
+  btnGenerate.disabled = false;
+  btnReset.disabled = false;
+  btnRecords.disabled = false;
+  seedInput.disabled = false;
+}
+
 function newLevel() {
   isGenerating = true;
 
@@ -1383,9 +1450,17 @@ seedInput.addEventListener("keypress", (e) => {
   }
 
   // 随机生成关卡
-  const btnGenerate = document.getElementById("btnGenerate");
+  const seedInput = document.getElementById("seedInput");
+const btnGenerate = document.getElementById("btnGenerate");
   if (btnGenerate) {
-    btnGenerate.addEventListener("click", () => {
+    seedInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    generateFromSeed();
+  }
+});
+btnGenerate.addEventListener("click", () => {
+  generateFromSeed();
+});
       if (isGenerating) return;
       isGenerating = true;
       btnGenerate.disabled = true;
