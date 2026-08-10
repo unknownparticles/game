@@ -1277,6 +1277,18 @@ seedInput.addEventListener("keypress", (e) => {
     newLevel();
     statusEl.textContent = "游戏已就绪";
   }, 80); // 极短延迟
+
+  function copyToClipboard() {
+    const text = exportTextEl.value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const original = statusEl.textContent;
+      statusEl.textContent = "已复制到剪贴板 ✓";
+      setTimeout(() => { statusEl.textContent = original; }, 2000);
+    }).catch(() => {
+      statusEl.textContent = "复制失败，请手动复制";
+    });
+  }
 });
 </script>
 
