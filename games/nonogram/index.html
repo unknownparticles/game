@@ -1119,7 +1119,7 @@ function getTerrainSVG(type, unlocked, progress) {
 // 初始化
 document.addEventListener("DOMContentLoaded", () => {
   // 添加复制按钮事件
-  const seedInput = document.getElementById("seedInput");
+  
 const loadSeedBtn = document.getElementById("btnLoadSeed");
 
 function loadLevelBySeed(seedStr) {
@@ -1172,7 +1172,7 @@ loadSeedBtn.addEventListener("click", () => {
   loadLevelBySeed(seedInput.value.trim());
 });
 
-const seedInput = document.getElementById("seedInput");
+
 seedInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") loadLevelBySeed(seedInput.value.trim());
 });
@@ -1202,7 +1202,7 @@ seedInput.addEventListener("keypress", (e) => {
   }
 
   // 随机生成关卡
-  const seedInput = document.getElementById("seedInput");
+  
 const btnGenerate = document.getElementById("btnGenerate");
   if (btnGenerate) {
     seedInput.addEventListener("keydown", (e) => {
@@ -1268,7 +1268,7 @@ btnGenerate.addEventListener("click", () => {
     hideLoading();
     newLevel();
       // Seed input
-  const seedInput = document.getElementById("seedInput");
+  
   const loadSeedBtn = document.getElementById("btnLoadSeed");
   if (seedInput && loadSeedBtn) {
     loadSeedBtn.addEventListener("click", () => {
