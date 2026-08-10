@@ -274,10 +274,6 @@ input:checked + .slider:before {
     <button id="btnModeGrass" class="mode-btn active">草方块</button>
     <button id="btnModeIce" class="mode-btn">冰方块</button>
     <button id="btnModeNormal" class="mode-btn">普通模式</button>
-  <input id="seedInput" type="text" placeholder="输入种子..." style="width:160px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#eee;font-size:13px;">
-  <button id="btnLoadSeed" class="secondary">加载种子</button>
-  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
-  <button id="btnLoadSeed" class="secondary">加载种子</button>
   </div>
   <div class="draw-mode-switch">
     <label class="switch">
@@ -288,34 +284,11 @@ input:checked + .slider:before {
   </div>
   <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
   <button id="btnLoadSeed" class="secondary">加载种子</button>
-  <input id="seedInput" type="text" placeholder="输入种子" style="width: 180px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;"><button id="btnGenerate" type="button">生成新关卡</button>
+  <button id="btnGenerate" type="button">生成新关卡</button>
   <button id="btnReset" class="secondary" type="button">清空棋盘</button>
   <button id="btnRecords" class="secondary" type="button">生成记录</button>
   <button id="btnExport" class="secondary" type="button">导出文本</button>
   <button id="btnCopy" class="secondary" type="button">复制种子</button>
-  <span id="status" class="status">准备生成…</span>
-</div>
-  <div class="mode-toggle">
-    <button id="btnModeGrass" class="mode-btn active">草方块</button>
-    <button id="btnModeIce" class="mode-btn">冰方块</button>
-    <button id="btnModeNormal" class="mode-btn">普通模式</button>
-  <input id="seedInput" type="text" placeholder="输入种子..." style="width:160px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#eee;font-size:13px;">
-  <button id="btnLoadSeed" class="secondary">加载种子</button>
-  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
-  <button id="btnLoadSeed" class="secondary">加载种子</button>
-  </div>
-  <div class="draw-mode-switch">
-    <label class="switch">
-      <input type="checkbox" id="xMode" checked>
-      <span class="slider"></span>
-    </label>
-    <span>打X模式</span>
-  </div>
-  <input id="seedInput" type="text" placeholder="输入种子" style="width: 180px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;"><button id="btnGenerate" type="button">生成新关卡</button>
-  <button id="btnReset" class="secondary" type="button">清空棋盘</button>
-  <button id="btnRecords" class="secondary" type="button">生成记录</button>
-  <button id="btnExport" class="secondary" type="button">导出文本</button>
-  <button id="btnCopy" class="secondary" type="button">复制 JSON</button>
   <span id="status" class="status">准备生成…</span>
 </div>
 
@@ -1042,17 +1015,9 @@ function showRecords() {
   let text = '生成记录：\n\n';
   generationHistory.forEach((r, i) => {
     const mode = r.mode === 0 ? '草方块' : '冰方块';
-  function copyToClipboard() {
-  const text = exportTextEl.value;
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    const original = statusEl.textContent;
-    statusEl.textContent = "已复制到剪贴板 ✓";
-    setTimeout(() => { statusEl.textContent = original; }, 2000);
-  }).catch(() => {
-    statusEl.textContent = "复制失败，请手动复制";
+    text += `${i + 1}. ${mode} - ${r.date} - 填充: ${r.filled}/${r.target}\n`;
   });
-}
+  alert(text);
 
 // 【地形SVG生成器】草方块/冰方块模式专用
 function getTerrainSVG(type, unlocked, progress) {
@@ -1118,10 +1083,13 @@ function getTerrainSVG(type, unlocked, progress) {
 
 // 初始化
 document.addEventListener("DOMContentLoaded", () => {
+  const seedInput = document.getElementById("seedInput");
+  const btnLoadSeed = document.getElementById("btnLoadSeed");
+  const btnExport = document.getElementById("btnExport");
+  const copyBtn = document.getElementById("btnCopy");
+
   // 添加复制按钮事件
   
-const loadSeedBtn = document.getElementById("btnLoadSeed");
-
 function loadLevelBySeed(seedStr) {
   if (!seedStr) return;
   const seed = parseFloat(seedStr);
@@ -1168,7 +1136,7 @@ function generateSolutionWithSeed(seed) {
   return { grid, filled, target: filled };
 }
 
-loadSeedBtn.addEventListener("click", () => {
+btnLoadSeed.addEventListener("click", () => {
   loadLevelBySeed(seedInput.value.trim());
 });
 
@@ -1202,30 +1170,71 @@ seedInput.addEventListener("keypress", (e) => {
   }
 
   // 随机生成关卡
-  
-const btnGenerate = document.getElementById("btnGenerate");
+  const btnGenerate = document.getElementById("btnGenerate");
+  const seedInput = document.getElementById("seedInput");
   if (btnGenerate) {
-    seedInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    generateFromSeed();
-  }
-});
-btnGenerate.addEventListener("click", () => {
-  generateFromSeed();
-});
-      if (isGenerating) return;
-      isGenerating = true;
-      btnGenerate.disabled = true;
-      btnRecords.disabled = true;
-      btnReset.disabled = true;
-      newLevel();
-      setTimeout(() => {
-        isGenerating = false;
-        btnGenerate.disabled = false;
-        btnRecords.disabled = false;
-        btnReset.disabled = false;
-      }, 300);
+    btnGenerate.addEventListener("click", () => {
+      generateFromSeed();
     });
+    seedInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        generateFromSeed();
+      }
+    });
+  }
+
+  function newLevel() {
+    statusEl.textContent = "正在生成关卡...";
+    const seed = Math.random() * 1000000;
+    const { grid, filled, target } = generateSolutionWithSeed(seed);
+    solution = grid;
+    rows = solution.map(row => getHintBlocks(row));
+    cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+    createTerrain();
+    createBoard();
+    createHints();
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        renderCell(cells[r][c], r, c);
+      }
+    }
+    refreshHints();
+    exportLevelText();
+    statusEl.textContent = `关卡生成完成！填充: ${filled}`;
+  }
+
+  function exportLevelText() {
+    if (!solution || solution.length === 0) return;
+    let text = '';
+    for (let row of solution) {
+      text += row.join(' ') + '\n';
+    }
+    exportTextEl.value = text.trim();
+  }
+
+  function showLoading() {
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) overlay.style.display = "flex";
+  }
+
+  function hideLoading() {
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  function generateFromSeed() {
+    if (isGenerating) return;
+    isGenerating = true;
+    if (btnGenerate) btnGenerate.disabled = true;
+    if (btnRecords) btnRecords.disabled = true;
+    if (btnReset) btnReset.disabled = true;
+    newLevel();
+    setTimeout(() => {
+      isGenerating = false;
+      if (btnGenerate) btnGenerate.disabled = false;
+      if (btnRecords) btnRecords.disabled = false;
+      if (btnReset) btnReset.disabled = false;
+    }, 300);
   }
 
   // 模式切换（支持草/冰/普通，三种类型，持久化到 localStorage）
@@ -1267,22 +1276,7 @@ btnGenerate.addEventListener("click", () => {
   setTimeout(() => {
     hideLoading();
     newLevel();
-      // Seed input
-  
-  const loadSeedBtn = document.getElementById("btnLoadSeed");
-  if (seedInput && loadSeedBtn) {
-    loadSeedBtn.addEventListener("click", () => {
-      const seedStr = seedInput.value.trim();
-      if (seedStr) loadLevelBySeed(seedStr);
-    });
-    seedInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        const seedStr = seedInput.value.trim();
-        if (seedStr) loadLevelBySeed(seedStr);
-      }
-    });
-  }
-  statusEl.textContent = "游戏已就绪";
+    statusEl.textContent = "游戏已就绪";
   }, 80); // 极短延迟
 });
 </script>
