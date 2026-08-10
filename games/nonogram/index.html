@@ -1048,227 +1048,22 @@ function showRecords() {
 }
 
 function exportLevelText() {
-  let text = ;
-  text += '解决方案 (1=填充, 0=空):
+  let text = '解决方案 (1=填充, 0=空):
 ';
-  grid.forEach(row => {
+  let text = '解决方案 (1=填充, 0=空):
+';
+';
     text += row.map(v => v ? '1' : '0').join(' ') + '
 ';
   });
-  text += '
+  text += \'\n提示（行）: ' + JSON.stringify(rows, null, 2);
+  text += \'\n提示（行）: ' + JSON.stringify(rows, null, 2);
 提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += '
-提示（列）: ' + JSON.stringify(cols, null, 2);
-  exportTextEl.value = text;
-}
-  let text = ;
-  // Solution grid (0/1)
-  text += '解决方案 (1=填充, 0=空):
-';
-  grid.forEach(row => {
-    text += row.map(v => v ? '1' : '0').join(' ') + '
-';
-  });
-  text += '
-提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += '
-提示（列）: ' + JSON.stringify(cols, null, 2);
+  text += \'\n提示（列）: ' + JSON.stringify(cols, null, 2);
   exportTextEl.value = text;
 }
 
-  const text = ;
-  // ... rest of text grid
-  const payload = {
-    size: SIZE,
-    rows: rows.map((arr) => arr.slice()),
-    cols: cols.map((arr) => arr.slice()),
-    solution: solution.map((row) => row.slice()),
-    terrain: terrain.map((row) => row.slice()),
-    filled: countFilled(solution)
-  };
-  exportTextEl.value = JSON.stringify(payload, null, 2);
-  return payload;
-}
-
-// 【优化生成逻辑】
-function generateSolution() {
-  let grid = [];
-  let filled = 0;
-  let attempts = 0;
-  const maxAttempts = 30;
-  while (attempts < maxAttempts) {
-    grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-    filled = 0;
-    const total = SIZE * SIZE;
-    const targetBlocks = Math.floor((MIN_BLOCKS + MAX_BLOCKS) / 2);
-    const density = Math.min(1, targetBlocks / total);
-    for (let r = 0; r < SIZE; r++) {
-      for (let c = 0; c < SIZE; c++) {
-        if (Math.random() < density) {
-          grid[r][c] = 1;
-          filled++;
-        }
-      }
-    }
-    attempts++;
-    if (filled >= MIN_BLOCKS && filled <= MAX_BLOCKS) return { grid, filled, target: targetBlocks };
-  }
-  grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      if (Math.random() < 0.7) {
-        grid[r][c] = 1;
-        filled++;
-      }
-    }
-  }
-  return { grid, filled, target: filled };
-}
-
-function generateFromSeed() {
-  const seedStr = seedInput.value.trim();
-  if (!seedStr) {
-    statusEl.textContent = "请输入种子";
-    return;
-  }
-  isGenerating = true;
-  btnGenerate.disabled = true;
-  btnReset.disabled = true;
-  btnRecords.disabled = true;
-  seedInput.disabled = true;
-
-  const modeNames = ['草方块', '冰方块', '普通模式'];
-  const { grid, filled, target } = generateSolution();
-  solution = grid;
-  rows = solution.map(row => getHintBlocks(row));
-  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
-  createTerrain();
-  createBoard();
-  createHints();
-  updateHintStyles();
-  exportLevelText();
-  statusEl.classList.remove("win");
-  statusEl.textContent = "请输入种子";
-
-  isGenerating = false;
-  btnGenerate.disabled = false;
-  btnReset.disabled = false;
-  btnRecords.disabled = false;
-  seedInput.disabled = false;
-}
-  const seedStr = seedInput.value.trim();
-  if (!seedStr) {
-    statusEl.textContent = "请输入种子";
-    return;
-  }
-  isGenerating = true;
-  btnGenerate.disabled = true;
-  btnReset.disabled = true;
-  btnRecords.disabled = true;
-  seedInput.disabled = true;
-
-  // Simple seeded random (using seed as base)
-  let seed = parseFloat(seedStr);
-  if (isNaN(seed)) seed = Math.random();
-  Math.seedrandom(seed); // note: this requires a seeded random lib, fallback to Math.random
-
-  const modeNames = ['草方块', '冰方块', '普通模式'];
-  const { grid, filled, target } = generateSolution();
-  solution = grid;
-  rows = solution.map(row => getHintBlocks(row));
-  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
-  createTerrain();
-  createBoard();
-  createHints();
-  updateHintStyles();
-  exportLevelText();
-  statusEl.classList.remove("win");
-  statusEl.textContent = "请输入种子";
-
-  isGenerating = false;
-  btnGenerate.disabled = false;
-  btnReset.disabled = false;
-  btnRecords.disabled = false;
-  seedInput.disabled = false;
-}
-
-function newLevel() {
-  isGenerating = true;
-
-  const modeNames = ['草方块', '冰方块', '普通模式'];
-  const { grid, filled, target } = generateSolution();
-currentSeed = Math.random().toFixed(10);
-  solution = grid;
-  rows = solution.map(row => getHintBlocks(row));
-  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
-  createTerrain();
-  createBoard();
-  createHints();
-  updateHintStyles();
-  // initial render for terrain cells
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      renderCell(cells[r][c], r, c);
-    }
-  }
-  refreshHints();
-  exportLevelText();
-  statusEl.classList.remove("win");
-  statusEl.textContent = `已生成：${modeNames[currentMode]} 目标约 ${target}，实际 ${filled} 块`;
-
-  // 保存生成记录
-  saveGeneration(filled, target);
-
-  isGenerating = false;
-}
-
-// 【资源加载动画】
-function showLoading() {
-  const overlay = document.getElementById("loading-overlay");
-  overlay.style.opacity = "1";
-  overlay.style.pointerEvents = "all";
-}
-
-function hideLoading() {
-  const overlay = document.getElementById("loading-overlay");
-  overlay.style.opacity = "0";
-  setTimeout(() => {
-    overlay.style.pointerEvents = "none";
-  }, 300);
-}
-
-// 复制功能
-
-function exportLevelText() {
-  let text = ;
-  text += '解决方案 (1=填充, 0=空):
-';
-  grid.forEach(row => {
-    text += row.map(v => v ? '1' : '0').join(' ') + '
-';
-  });
-  text += '
-提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += '
-提示（列）: ' + JSON.stringify(cols, null, 2);
-  exportTextEl.value = text;
-}
-  let text = ;
-  // Solution grid (0/1)
-  text += '解决方案 (1=填充, 0=空):
-';
-  grid.forEach(row => {
-    text += row.map(v => v ? '1' : '0').join(' ') + '
-';
-  });
-  text += '
-提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += '
-提示（列）: ' + JSON.stringify(cols, null, 2);
-  exportTextEl.value = text;
-}
-
-  const text = ;
+  const text = "";
   // ... rest of text grid
   const grid = solution; // solution is already 15x15
   let text = '15x15 数织解决方案：
@@ -1277,8 +1072,7 @@ function exportLevelText() {
     text += row.map(v => v ? '1' : '0').join(' ') + '
 ';
   });
-  text += '
-提示（行）：
+  text += \'\n提示（行）：
 ' + JSON.stringify(rows, null, 2);
   text += '
 
