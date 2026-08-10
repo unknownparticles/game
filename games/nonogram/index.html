@@ -343,6 +343,8 @@ let cols = [];
 let cells = [];
 let currentMode = 0; // 0=grass, 1=ice
 let generationHistory = [];
+let currentSeed = 0;
+let currentSeed = 0;
 let isGenerating = false;
 let mobileXMode = true;
 
@@ -1019,6 +1021,36 @@ function showRecords() {
 }
 
 function exportLevelText() {
+  let text = ;
+  text += '解决方案 (1=填充, 0=空):
+';
+  grid.forEach(row => {
+    text += row.map(v => v ? '1' : '0').join(' ') + '
+';
+  });
+  text += '
+提示（行）: ' + JSON.stringify(rows, null, 2);
+  text += '
+提示（列）: ' + JSON.stringify(cols, null, 2);
+  exportTextEl.value = text;
+}
+  let text = ;
+  // Solution grid (0/1)
+  text += '解决方案 (1=填充, 0=空):
+';
+  grid.forEach(row => {
+    text += row.map(v => v ? '1' : '0').join(' ') + '
+';
+  });
+  text += '
+提示（行）: ' + JSON.stringify(rows, null, 2);
+  text += '
+提示（列）: ' + JSON.stringify(cols, null, 2);
+  exportTextEl.value = text;
+}
+
+  const text = ;
+  // ... rest of text grid
   const payload = {
     size: SIZE,
     rows: rows.map((arr) => arr.slice()),
@@ -1071,6 +1103,8 @@ function newLevel() {
 
   const modeNames = ['草方块', '冰方块', '普通模式'];
   const { grid, filled, target } = generateSolution();
+currentSeed = Math.random().toFixed(10);
+currentSeed = Math.random().toFixed(10);
   solution = grid;
   rows = solution.map(row => getHintBlocks(row));
   cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
@@ -1113,6 +1147,36 @@ function hideLoading() {
 // 复制功能
 
 function exportLevelText() {
+  let text = ;
+  text += '解决方案 (1=填充, 0=空):
+';
+  grid.forEach(row => {
+    text += row.map(v => v ? '1' : '0').join(' ') + '
+';
+  });
+  text += '
+提示（行）: ' + JSON.stringify(rows, null, 2);
+  text += '
+提示（列）: ' + JSON.stringify(cols, null, 2);
+  exportTextEl.value = text;
+}
+  let text = ;
+  // Solution grid (0/1)
+  text += '解决方案 (1=填充, 0=空):
+';
+  grid.forEach(row => {
+    text += row.map(v => v ? '1' : '0').join(' ') + '
+';
+  });
+  text += '
+提示（行）: ' + JSON.stringify(rows, null, 2);
+  text += '
+提示（列）: ' + JSON.stringify(cols, null, 2);
+  exportTextEl.value = text;
+}
+
+  const text = ;
+  // ... rest of text grid
   const grid = solution; // solution is already 15x15
   let text = '15x15 数织解决方案：
 ';
