@@ -1042,46 +1042,7 @@ function showRecords() {
   let text = '生成记录：\n\n';
   generationHistory.forEach((r, i) => {
     const mode = r.mode === 0 ? '草方块' : '冰方块';
-    text += `${i+1}. ${r.date} - ${mode} (${r.filled}/${r.target})\n`;
-  });
-  alert(text);
-}
-
-function exportLevelText() {
-  let text = '解决方案 (1=填充, 0=空):
-';
-  let text = '解决方案 (1=填充, 0=空):
-';
-';
-    text += row.map(v => v ? '1' : '0').join(' ') + '
-';
-  });
-  text += \'\n提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += \'\n提示（行）: ' + JSON.stringify(rows, null, 2);
-提示（行）: ' + JSON.stringify(rows, null, 2);
-  text += \'\n提示（列）: ' + JSON.stringify(cols, null, 2);
-  exportTextEl.value = text;
-}
-
-  const text = "";
-  // ... rest of text grid
-  const grid = solution; // solution is already 15x15
-  let text = '15x15 数织解决方案：
-';
-  grid.forEach(row => {
-    text += row.map(v => v ? '1' : '0').join(' ') + '
-';
-  });
-  text += \'\n提示（行）：
-' + JSON.stringify(rows, null, 2);
-  text += '
-
-提示（列）：
-' + JSON.stringify(cols, null, 2);
-  exportTextEl.value = text;
-}
-
-function copyToClipboard() {
+  function copyToClipboard() {
   const text = exportTextEl.value;
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
