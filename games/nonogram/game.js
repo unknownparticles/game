@@ -338,7 +338,10 @@ function createTerrain() {
     }
   } else if (mode === MODE_ICE) {
     const positions = [];
-    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) positions.push([r, c]);
+    // 冰块不能贴边生成，但不限制冰块之间相邻。
+    for (let r = 1; r < SIZE - 1; r++) {
+      for (let c = 1; c < SIZE - 1; c++) positions.push([r, c]);
+    }
     let offset = 2;
     for (let i = positions.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom(currentSeed + offset++) * (i + 1));
@@ -723,11 +726,13 @@ function renderCell(el, r, c) {
     }
   } else if (t === 2) {
     el.classList.add("terrain-ice");
-    el.innerHTML = getTerrainSVG(2, isUnlocked(r, c), unlockProgress[r][c]);
-    el.classList.toggle("locked", !isUnlocked(r, c));
-    if (isUnlocked(r, c)) {
+    const unlocked = isUnlocked(r, c);
+    const progress = unlockProgress[r][c];
+    el.innerHTML = getTerrainSVG(2, unlocked, progress);
+    el.classList.toggle("locked", !unlocked);
+    if (progress > 0) {
       el.classList.add("has-progress");
-      el.setAttribute("data-progress", unlockProgress[r][c] + "/4");
+      el.setAttribute("data-progress", progress + "/4");
     }
   }
 }
@@ -875,7 +880,7 @@ function showRecords() {
 
 // 【地形SVG生成器】草方块/冰方块模式专用
 function getTerrainSVG(type, unlocked, progress) {
-  let state = unlocked ? Math.min(4, Math.max(0, Math.floor(progress))) : 0;
+  const state = Math.min(4, Math.max(0, Math.floor(progress)));
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 30 30">`;
   if (type === 1) { // grass
     svg += `
@@ -896,33 +901,29 @@ function getTerrainSVG(type, unlocked, progress) {
       iceStroke = "#6b7280";
       shine1 = "rgba(255,255,255,0.3)";
       shine2 = "rgba(255,255,255,0.2)";
-    } else {
-      switch (state) {
-        case 1: // 1/4 broken
-          cracks = `
-            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" opacity="0.8" />
-            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" opacity="0.7" />
-          `;
-          break;
-        case 2: // 1/2 broken
-          cracks = `
-            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
-            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
-            <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
-          `;
-          break;
-        case 3: // 3/4 broken
-          cracks = `
-            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
-            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
-            <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
-            <path d="M20 10 L24 12" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
-          `;
-          break;
-        case 4: // full
-          cracks = "";
-          break;
-      }
+    }
+    switch (state) {
+      case 1: // 1/4 broken
+        cracks = `
+          <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" opacity="0.8" />
+          <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" opacity="0.7" />
+        `;
+        break;
+      case 2: // 2/4 broken
+        cracks = `
+          <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
+          <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+          <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
+        `;
+        break;
+      case 3: // 3/4 broken
+        cracks = `
+          <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
+          <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+          <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
+          <path d="M20 10 L24 12" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+        `;
+        break;
     }
     svg += `
       <rect x="3" y="3" width="24" height="24" rx="3" fill="${iceFill}" stroke="${iceStroke}" stroke-width="2" opacity="${opacity}" />
