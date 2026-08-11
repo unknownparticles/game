@@ -1,1065 +1,1107 @@
-// ===============================
-// 游戏核心
-// ===============================
-
+// ======================
+// 常量
+// ======================
 const SIZE = 15;
-const UNKNOWN = 0;
-const FILLED = 1;
-const EMPTY = 2;
+const MIN_BLOCKS = 100;
+const MAX_BLOCKS = 230;
 
-const MODE_CLASSIC = "classic";
-const MODE_GRASS = "grass";
-const MODE_ICE = "ice";
+let drawMode = true;
+let isGenerating = false;
+let mobileXMode = true;
 
-const MODE_LABELS = {
-  classic: "经典模式",
-  grass: "草方块模式",
-  ice: "除冰模式",
-};
+let boardEl = document.getElementById("board");
+let rowHintsEl = document.getElementById("rowHints");
+let colHintsEl = document.getElementById("colHints");
+let statusEl = document.getElementById("status");
 
+// ======================
+// 地形数据
+// ======================
+let terrain = [];
+let unlockProgress = [];
+let hasGrassRow = Array(SIZE).fill(false);
+let hasGrassCol = Array(SIZE).fill(false);
+
+// ======================
+// 游戏数据
+// ======================
 let solution = [];
-let board = [];
-let currentLevel = null;
-let life = 5;
-let startTime = 0;
-let timer = null;
-let seconds = 0;
-let tools = { hammer: 3, plane: 1, magnet: 1 };
+let state = [];
+let errorFlags = [];
+let rows = [];
+let cols = [];
+let cells = [];
+let currentMode = 0; // 0=grass, 1=ice
+let generationHistory = [];
 
-let errorCells = new Set();
-let gameOver = false;
-let gameMode = MODE_CLASSIC;
-let grassMap = [];
-let iceMap = [];
-let clearingAnim = new Set();
+// ======================
+// 拖拽交互
+// ======================
+let dragSession = null;
+let touchPending = null;
+const LONG_PRESS_MS = 420;
 
-function cellKey(r, c) {
-  return r + "," + c;
-}
+// ======================
+// 工具函数
+// ======================
+function cellKey(r, c) { return `${r},${c}`; }
 
-function inBounds(r, c) {
-  return r >= 0 && c >= 0 && r < SIZE && c < SIZE;
-}
-
-function neighbors4(r, c) {
-  return [
-    [r - 1, c],
-    [r + 1, c],
-    [r, c - 1],
-    [r, c + 1],
-  ].filter(([nr, nc]) => inBounds(nr, nc));
-}
-
-function emptyMask(size = SIZE) {
-  return Array.from({ length: size }, () => Array(size).fill(false));
-}
-
-function isGrass(r, c) {
-  return !!(grassMap[r] && grassMap[r][c]);
-}
-
-function isIce(r, c) {
-  return !!(iceMap[r] && iceMap[r][c]);
-}
-
-function isBlocked(r, c) {
-  return isGrass(r, c) || isIce(r, c);
-}
-
-function isPlayableUnknown(r, c) {
-  return board[r][c] === UNKNOWN && !isBlocked(r, c) && !errorCells.has(cellKey(r, c));
-}
-
-function isRevealed(r, c) {
-  if (!inBounds(r, c)) return true;
-  if (isBlocked(r, c)) return false;
-  return board[r][c] !== UNKNOWN;
-}
-
-function rowHasHazard(r) {
-  for (let c = 0; c < SIZE; c++) {
-    if (isGrass(r, c) || isIce(r, c)) return true;
-  }
-  return false;
-}
-
-function colHasHazard(c) {
-  for (let r = 0; r < SIZE; r++) {
-    if (isGrass(r, c) || isIce(r, c)) return true;
-  }
-  return false;
-}
-
-function isRowHidden(r) {
-  return rowHasHazard(r);
-}
-
-function isColHidden(c) {
-  return colHasHazard(c);
-}
-
-function getMessageEl() {
-  return document.getElementById("message");
-}
-
-function showMessage(html, type) {
-  const el = getMessageEl();
-  if (!el) return;
-  el.classList.remove("msg-error", "msg-success", "msg-info", "msg-pop");
-  void el.offsetWidth;
-  el.innerHTML = html;
-  if (type) el.classList.add(type);
-  if (html) el.classList.add("msg-pop");
-}
-
-function updateModeUI() {
-  const title = document.getElementById("gameTitle");
-  const badge = document.getElementById("modeBadge");
-  const tip = document.getElementById("modeTip");
-  const label = MODE_LABELS[gameMode] || MODE_LABELS.classic;
-  if (title) title.textContent = "方块推理 · " + label;
-  if (badge) {
-    badge.textContent = label;
-    badge.dataset.mode = gameMode;
-  }
-  if (tip) {
-    if (gameMode === MODE_GRASS) {
-      tip.innerHTML =
-        "草方块模式：5×5 草地区不可点击；相邻格被揭示（玩家点击或自动标 ×）后草地消失。<br>数字含义：行从左到右、列从上到下的连续实心段；有草的行/列数字隐藏。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
-    } else if (gameMode === MODE_ICE) {
-      tip.innerHTML =
-        "除冰模式：随机 5 块冰，所在行/列数字隐藏；四周都被揭示（含自动标 ×）后碎裂。<br>数字含义：行从左到右、列从上到下的连续实心段；锤子/磁铁/飞机不能作用于冰块或隐藏行列。<br>操作：单击填充 ■；右键/长按标记 ×。点错会标红并揭示正确答案。";
-    } else {
-      tip.innerHTML =
-        "随机 50~160 方块，答案仅后台保存。<br>数字含义：<strong>行从左到右</strong>、<strong>列从上到下</strong> 的连续实心段长度。<br>操作：单击填充 ■；右键/长按标记 ×。点错会扣生命并标红显示正确答案。";
-    }
-  }
-}
-
-// ===============================
-// 页面切换
-// ===============================
-
-function hideAll() {
-  document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
-}
-
-function show(id) {
-  hideAll();
-  document.getElementById(id).classList.remove("hidden");
-}
-
-function backHome() {
-  show("home");
-}
-
-// ===============================
-// 开始游戏
-// ===============================
-
-function startGame(mode = MODE_CLASSIC) {
-  gameMode = mode || MODE_CLASSIC;
-  const level = createRandomLevel({
-    stage: 1,
-    name: "第 1 关",
-    density: "mid",
-  });
-  loadLevel(level, gameMode);
-  show("gamePage");
-}
-
-function startGrassMode() {
-  startGame(MODE_GRASS);
-}
-
-function startIceMode() {
-  startGame(MODE_ICE);
-}
-
-function showLevels(mode = MODE_CLASSIC) {
-  gameMode = mode || MODE_CLASSIC;
-  show("levelPage");
-  const box = document.getElementById("levels");
-  box.innerHTML = "";
-
-  const modeInfo = document.createElement("p");
-  modeInfo.className = "level-mode-info";
-  modeInfo.textContent = "当前选择：" + (MODE_LABELS[gameMode] || "经典模式") + "（每关随机 50~160 方块）";
-  box.appendChild(modeInfo);
-
-  levels.forEach((level, idx) => {
-    const div = document.createElement("div");
-    div.className = "level-card";
-    div.innerHTML = `
-      <h3>${level.name}</h3>
-      <p>难度: ${level.difficulty}</p>
-      <p>随机生成，答案不预显</p>
-      <button type="button">开始</button>
-    `;
-    div.querySelector("button").onclick = () => {
-      const ready = materializeLevel(level, { stage: idx + 1 });
-      loadLevel(ready, gameMode);
-      show("gamePage");
-    };
-    box.appendChild(div);
-  });
-}
-
-function dailyGame(mode = MODE_CLASSIC) {
-  gameMode = mode || MODE_CLASSIC;
-  loadLevel(getDailyLevel({ mode: gameMode }), gameMode);
-  show("gamePage");
-}
-
-function showRank() {
-  show("rankPage");
-  renderRank();
-}
-
-// ===============================
-// 模式障碍生成
-// ===============================
-
-function resetHazards() {
-  grassMap = emptyMask();
-  iceMap = emptyMask();
-  clearingAnim = new Set();
-}
-
-function placeGrassPatch() {
-  grassMap = emptyMask();
-  const top = Math.floor(Math.random() * (SIZE - 4));
-  const left = Math.floor(Math.random() * (SIZE - 4));
-  for (let r = top; r < top + 5; r++) {
-    for (let c = left; c < left + 5; c++) {
-      grassMap[r][c] = true;
-    }
-  }
-  return { top, left };
-}
-
-function placeIceBlocks(count = 5) {
-  iceMap = emptyMask();
-  const pool = [];
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) pool.push([r, c]);
-  }
-  for (let i = pool.length - 1; i > 0; i--) {
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  for (let i = 0; i < count && i < pool.length; i++) {
-    const [r, c] = pool[i];
-    iceMap[r][c] = true;
-  }
+  return arr;
 }
 
-function initModeHazards(mode) {
-  resetHazards();
-  gameMode = mode || MODE_CLASSIC;
-  if (gameMode === MODE_GRASS) {
-    const pos = placeGrassPatch();
-    showMessage(
-      `🌿 草方块模式：草地生成在 (${pos.top + 1},${pos.left + 1}) 起的 5×5 区域`,
-      "msg-info",
-    );
-  } else if (gameMode === MODE_ICE) {
-    placeIceBlocks(5);
-    showMessage("🧊 除冰模式：已冻结 5 个方块，先揭示其四周再破冰", "msg-info");
-  }
-}
-
-// 任意已揭示格（点击/自动标×/技能）都会清除其相邻草方块
-function clearReadyGrass(silent) {
-  if (gameMode !== MODE_GRASS) return false;
-  let cleared = 0;
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      // 只认“周围方块已变化/已揭示”的邻居
-      if (isBlocked(r, c) || board[r][c] === UNKNOWN) continue;
-      neighbors4(r, c).forEach(([nr, nc]) => {
-        if (isGrass(nr, nc)) {
-          grassMap[nr][nc] = false;
-          clearingAnim.add(cellKey(nr, nc));
-          cleared += 1;
-        }
-      });
-    }
-  }
-  if (cleared && !silent) {
-    showMessage(`🌿 周围方块变化，清除了 ${cleared} 个草方块`, "msg-info");
-  }
-  return cleared > 0;
-}
-
-// 冰块四周都被揭示（含自动标×）则碎裂
-function breakReadyIce(silent) {
-  if (gameMode !== MODE_ICE) return false;
-  let broken = 0;
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      if (!isIce(r, c)) continue;
-      const around = neighbors4(r, c);
-      if (around.length === 0) continue;
-      if (around.every(([nr, nc]) => isRevealed(nr, nc))) {
-        iceMap[r][c] = false;
-        clearingAnim.add(cellKey(r, c));
-        broken += 1;
-      }
-    }
-  }
-  if (broken && !silent) {
-    showMessage(`🧊 周围方块变化，碎裂了 ${broken} 块冰`, "msg-info");
-  }
-  return broken > 0;
-}
-
-function snapshotBoard() {
-  return board.map((row) => row.slice());
-}
-
-function boardEquals(a, b) {
-  return a.every((row, r) => row.every((v, c) => v === b[r][c]));
-}
-
-function countMask(mask) {
-  let n = 0;
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (mask[r][c]) n++;
-  return n;
-}
-
-// 统一结算：周围变化触发草/冰，并可与自动标×互相连锁
-function settleBoard() {
-  let totalGrass = 0;
-  let totalIce = 0;
-  let guard = 0;
-  while (guard++ < 50) {
-    const beforeBoard = snapshotBoard();
-    const beforeGrass = countMask(grassMap);
-    const beforeIce = countMask(iceMap);
-
-    if (clearReadyGrass(true)) totalGrass += Math.max(0, beforeGrass - countMask(grassMap));
-    if (breakReadyIce(true)) totalIce += Math.max(0, beforeIce - countMask(iceMap));
-
-    autoFill();
-
-    const grassSame = countMask(grassMap) === beforeGrass;
-    const iceSame = countMask(iceMap) === beforeIce;
-    const boardSame = boardEquals(beforeBoard, board);
-    // 若本轮草/冰有变化，继续；若仅 board 因 autofill 变化也继续，好让新标×再触发
-    if (grassSame && iceSame && boardSame) break;
-  }
-
-  if (totalGrass && totalIce) {
-    showMessage(`🌿🧊 周围变化：清除 ${totalGrass} 草，碎裂 ${totalIce} 冰`, "msg-info");
-  } else if (totalGrass) {
-    showMessage(`🌿 周围方块变化，清除了 ${totalGrass} 个草方块`, "msg-info");
-  } else if (totalIce) {
-    showMessage(`🧊 周围方块变化，碎裂了 ${totalIce} 块冰`, "msg-info");
-  }
-}
-
-function afterPlayerReveal(_r, _c) {
-  settleBoard();
-}
-
-function afterAnyBoardChange() {
-  settleBoard();
-}
-
-// ===============================
-// 加载关卡
-// ===============================
-
-function hideNextLevelBar() {
-  const bar = document.getElementById("nextLevelBar");
-  if (bar) bar.classList.add("hidden");
-}
-
-function showNextLevelBar() {
-  const bar = document.getElementById("nextLevelBar");
-  if (bar) bar.classList.remove("hidden");
-}
-
-function loadLevel(level, mode = MODE_CLASSIC) {
-  const ready = materializeLevel(level || {}, { stage: (level && level.stage) || 1 });
-  currentLevel = ready;
-  gameMode = mode || MODE_CLASSIC;
-  solution = JSON.parse(JSON.stringify(ready.solution));
-  board = Array.from({ length: SIZE }, () => Array(SIZE).fill(UNKNOWN));
-  life = 5;
-  seconds = 0;
-  startTime = Date.now();
-  tools = { hammer: 3, plane: 1, magnet: 1 };
-  errorCells = new Set();
-  gameOver = false;
-  hideNextLevelBar();
-  showMessage("", null);
-  initModeHazards(gameMode);
-  updateModeUI();
-  updateStatus();
-  renderTips();
-  renderBoard();
-  startTimer();
-  // 答案仅存 solution，不在棋盘预显
-  showMessage(
-    `🧩 ${ready.name || "新关卡"} · ${ready.blocks || "?"} 个方块（仅后台记录）`,
-    "msg-info",
-  );
-}
-
-// ===============================
-// 计时
-// ===============================
-
-function startTimer() {
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => {
-    seconds = Math.floor((Date.now() - startTime) / 1000);
-    const el = document.getElementById("timer");
-    if (el) el.innerText = formatTime(seconds);
-  }, 1000);
-}
-
-// ===============================
-// 提示生成
-// ===============================
-
-// 按扫描顺序生成连续实心段数字：
-// - 行：从左到右
-// - 列：从上到下（传入列数组时同样按索引 0→n）
-function getHint(arr) {
-  const result = [];
+function getHintBlocks(arr) {
+  const res = [];
   let count = 0;
+  let start = 0;
   for (let i = 0; i < arr.length; i++) {
     if (arr[i]) {
+      if (count === 0) start = i;
       count++;
-    } else if (count) {
-      result.push(count);
-      count = 0;
+    } else {
+      if (count > 0) {
+        res.push({count, start, end: start + count - 1});
+        count = 0;
+      }
     }
   }
-  if (count) result.push(count);
-  return result.length ? result : [0];
+  if (count > 0) {
+    res.push({count, start, end: start + count - 1});
+  }
+  return res.length ? res : [{count: 0, start: 0, end: -1}];
 }
 
-function renderTips() {
-  const rows = document.getElementById("rowHints");
-  const cols = document.getElementById("colHints");
-  rows.innerHTML = "";
-  cols.innerHTML = "";
+function getMaxNeighbors(r, c) {
+  let count = 0;
+  if (r > 0) count++;
+  if (r < SIZE - 1) count++;
+  if (c > 0) count++;
+  if (c < SIZE - 1) count++;
+  return count;
+}
 
-  for (let r = 0; r < SIZE; r++) {
-    const div = document.createElement("div");
-    div.className = "row-hint" + (isRowHidden(r) ? " hint-hidden" : "");
-    div.title = "第 " + (r + 1) + " 行：数字从左到右表示连续实心段";
-    if (isRowHidden(r)) {
-      const span = document.createElement("span");
-      span.className = "number hidden-number";
-      span.innerText = "?";
-      span.title = "该行存在草方块/冰块，数字已隐藏";
-      div.appendChild(span);
-    } else {
-      // 行提示：从左到右
-      const hints = getHint(solution[r]);
-      hints.forEach((n, idx) => {
-        const span = document.createElement("span");
-        span.className = "number";
-        span.innerText = n;
-        span.title = "从左数第 " + (idx + 1) + " 段连续 " + n + " 格";
-        div.appendChild(span);
-      });
-    }
-    rows.appendChild(div);
-  }
+function isRowFullySolved(r) {
+  return solution[r].some(val => val === 1) &&
+         solution[r].every((val, c) => val === 0 || state[r][c] === 1);
+}
 
+function isColFullySolved(c) {
+  return solution.map(row => row[c]).some(val => val === 1) &&
+         solution.map(row => row[c]).every((val, r) => val === 0 || state[r][c] === 1);
+}
+
+function autoCrossRow(r) {
+  if (!isRowFullySolved(r)) return;
   for (let c = 0; c < SIZE; c++) {
-    const div = document.createElement("div");
-    div.className = "col-hint" + (isColHidden(c) ? " hint-hidden" : "");
-    div.title = "第 " + (c + 1) + " 列：数字从上到下表示连续实心段";
-    if (isColHidden(c)) {
-      const span = document.createElement("span");
-      span.className = "number hidden-number";
-      span.innerText = "?";
-      span.title = "该列存在草方块/冰块，数字已隐藏";
-      div.appendChild(span);
-    } else {
-      // 列提示：从上到下（r=0 在最上）
-      const arr = [];
-      for (let r = 0; r < SIZE; r++) arr.push(solution[r][c]);
-      const hints = getHint(arr);
-      hints.forEach((n, idx) => {
-        const span = document.createElement("span");
-        span.className = "number";
-        span.innerText = n;
-        span.title = "从上数第 " + (idx + 1) + " 段连续 " + n + " 格";
-        div.appendChild(span);
-      });
+    if (solution[r][c] === 0 && state[r][c] === 0) {
+      state[r][c] = 2;
+      errorFlags[r][c] = null;
+      const cellEl = cells[r][c];
+      if (cellEl) renderCell(cellEl, r, c);
     }
-    cols.appendChild(div);
   }
 }
 
-// ===============================
-// 绘制棋盘
-// ===============================
-
-function renderBoard() {
-  const box = document.getElementById("board");
-  box.innerHTML = "";
-
+function autoCrossCol(c) {
+  if (!isColFullySolved(c)) return;
   for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.r = r;
-      cell.dataset.c = c;
-
-      cell.onclick = () => clickCell(r, c);
-      cell.oncontextmenu = (e) => {
-        e.preventDefault();
-        markEmpty(r, c);
-      };
-
-      let holdTimer;
-      cell.ontouchstart = (e) => {
-        holdTimer = setTimeout(() => markEmpty(r, c), 500);
-      };
-      cell.ontouchend = () => clearTimeout(holdTimer);
-      cell.ontouchmove = () => clearTimeout(holdTimer);
-
-      box.appendChild(cell);
+    if (solution[r][c] === 0 && state[r][c] === 0) {
+      state[r][c] = 2;
+      errorFlags[r][c] = null;
+      const cellEl = cells[r][c];
+      if (cellEl) renderCell(cellEl, r, c);
     }
   }
-
-  updateBoard();
 }
 
-function updateBoard(flashKey) {
-  const cells = document.querySelectorAll(".cell");
-  let index = 0;
-
-  cells.forEach((cell) => {
-    const r = Math.floor(index / SIZE);
-    const c = index % SIZE;
-    const key = cellKey(r, c);
-    const isError = errorCells.has(key);
-
-    cell.className = "cell";
-    cell.innerHTML = "";
-
-    if (isGrass(r, c)) {
-      cell.classList.add("grass", "locked");
-      cell.innerHTML = "🌿";
-      index++;
-      return;
-    }
-
-    if (isIce(r, c)) {
-      cell.classList.add("ice", "locked");
-      cell.innerHTML = "🧊";
-      index++;
-      return;
-    }
-
-    if (clearingAnim.has(key)) {
-      cell.classList.add("hazard-clear");
-    }
-
-    if (board[r][c] === FILLED) {
-      cell.classList.add("block", "green");
-      cell.innerHTML = "";
-    }
-
-    if (board[r][c] === EMPTY) {
-      cell.classList.add("empty", "cross");
-      cell.innerHTML = "×";
-    }
-
-    if (isError) {
-      cell.classList.add("error", "locked");
-      if (solution[r][c] === 1) {
-        cell.classList.add("block", "green");
-        cell.classList.remove("empty", "cross");
-        cell.innerHTML = "";
+function updateHintStyles() {
+  const rowNumberElements = rowHintsEl.querySelectorAll('.number');
+  let rowIdx = 0;
+  rows.forEach((blocks, r) => {
+    blocks.forEach((block, b) => {
+      const span = rowNumberElements[rowIdx];
+      if (!span) return;
+      const isComplete = block.count > 0 && 
+        Array.from({length: block.count}, (_, i) => state[r][block.start + i] === 1).every(v => v);
+      if (isComplete) {
+        span.classList.add('solved');
       } else {
-        cell.classList.add("empty", "cross");
-        cell.classList.remove("block", "green");
-        cell.innerHTML = "×";
+        span.classList.remove('solved');
       }
-    }
-
-    if (flashKey && flashKey === key) {
-      cell.classList.remove("error-flash");
-      void cell.offsetWidth;
-      cell.classList.add("error-flash");
-    }
-
-    if (board[r][c] !== UNKNOWN || isError) {
-      cell.classList.add("resolved");
-    }
-
-    index++;
+      rowIdx++;
+    });
   });
-
-  // 清理一次性动画标记
-  clearingAnim = new Set();
-  renderTips();
-  updateHints();
-}
-
-// ===============================
-// 点击格子
-// ===============================
-
-function canPlay() {
-  return !gameOver && life > 0;
-}
-
-function clickCell(r, c) {
-  if (!canPlay()) return;
-  if (isBlocked(r, c)) {
-    showMessage(isGrass(r, c) ? "🌿 草方块不可点击，先揭示相邻格子" : "🧊 冰块不可直接操作，先揭示四周", "msg-info");
-    return;
-  }
-  if (board[r][c] !== UNKNOWN || errorCells.has(cellKey(r, c))) return;
-
-  const correct = solution[r][c] === 1;
-  if (correct) {
-    board[r][c] = FILLED;
-    autoFill();
-    afterPlayerReveal(r, c);
-    updateBoard();
-    checkWin();
-    saveCurrent();
-    return;
-  }
-
-  applyWrongReveal(r, c, "fill");
-}
-
-function markEmpty(r, c) {
-  if (!canPlay()) return;
-  if (isBlocked(r, c)) {
-    showMessage(isGrass(r, c) ? "🌿 草方块不可点击，先揭示相邻格子" : "🧊 冰块不可直接操作，先揭示四周", "msg-info");
-    return;
-  }
-  if (board[r][c] !== UNKNOWN || errorCells.has(cellKey(r, c))) return;
-
-  const correct = solution[r][c] === 0;
-  if (correct) {
-    board[r][c] = EMPTY;
-    autoFill();
-    afterPlayerReveal(r, c);
-    updateBoard();
-    checkWin();
-    saveCurrent();
-    return;
-  }
-
-  applyWrongReveal(r, c, "empty");
-}
-
-function applyWrongReveal(r, c, action) {
-  const key = cellKey(r, c);
-  board[r][c] = solution[r][c] === 1 ? FILLED : EMPTY;
-  errorCells.add(key);
-  loseLife();
-
-  const correctText = solution[r][c] === 1 ? "■ 实心" : "× 空白";
-  const actionText = action === "fill" ? "填充" : "标记空白";
-  showMessage(
-    `❌ 判断错误（你选择了${actionText}）<br>已揭示正确答案：<span class="correct-answer">${correctText}</span>`,
-    "msg-error",
-  );
-
-  autoFill();
-  afterPlayerReveal(r, c);
-  updateBoard(key);
-  checkWin();
-  saveCurrent();
-}
-
-function loseLife() {
-  life--;
-  if (life < 0) life = 0;
-  updateStatus();
-  if (life === 0) {
-    gameOver = true;
-    showMessage("💀 生命耗尽，游戏失败<br>错误格子已标红并显示正确答案", "msg-error");
-    clearInterval(timer);
-  }
-}
-
-function updateStatus() {
-  const lifeEl = document.getElementById("life");
-  if (lifeEl) lifeEl.innerHTML = "❤️".repeat(life) || "💔";
-  const stageEl = document.getElementById("stageLabel");
-  if (stageEl) stageEl.textContent = (currentLevel && currentLevel.stage) || 1;
-  const blockEl = document.getElementById("blockCount");
-  if (blockEl) {
-    const n = (currentLevel && currentLevel.blocks) || (solution && solution.length ? solution.flat().filter(Boolean).length : "-");
-    blockEl.textContent = n;
-  }
-  const hammer = document.getElementById("hammerCount");
-  const plane = document.getElementById("planeCount");
-  const magnet = document.getElementById("magnetCount");
-  if (hammer) hammer.innerText = tools.hammer;
-  if (plane) plane.innerText = tools.plane;
-  if (magnet) magnet.innerText = tools.magnet;
-}
-
-// ===============================
-// 自动补空（跳过草/冰）
-// ===============================
-
-function autoFill() {
-  let changed = true;
-  while (changed) {
-    changed = false;
-
-    for (let r = 0; r < SIZE; r++) {
-      let total = 0;
-      let filled = 0;
-      for (let c = 0; c < SIZE; c++) {
-        if (solution[r][c]) total++;
-        if (board[r][c] === FILLED) filled++;
+  const colNumberElements = colHintsEl.querySelectorAll('.number');
+  let colIdx = 0;
+  cols.forEach((blocks, c) => {
+    blocks.forEach((block, b) => {
+      const span = colNumberElements[colIdx];
+      if (!span) return;
+      const isComplete = block.count > 0 && 
+        Array.from({length: block.count}, (_, i) => state[block.start + i][c] === 1).every(v => v);
+      if (isComplete) {
+        span.classList.add('solved');
+      } else {
+        span.classList.remove('solved');
       }
-      if (total === filled) {
-        for (let c = 0; c < SIZE; c++) {
-          if (solution[r][c] === 0 && board[r][c] === UNKNOWN && !isBlocked(r, c)) {
-            board[r][c] = EMPTY;
-            changed = true;
-          }
+      colIdx++;
+    });
+  });
+}
+
+// ======================
+// 地形相关函数
+// ======================
+function createTerrain() {
+  terrain = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  unlockProgress = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  hasGrassRow = Array(SIZE).fill(false);
+  hasGrassCol = Array(SIZE).fill(false);
+
+  const mode = currentMode;
+  if (mode === 0) { // 草方块
+    let placed = false;
+    while (!placed) {
+      const sr = Math.floor(Math.random() * (SIZE - 4));
+      const sc = Math.floor(Math.random() * (SIZE - 4));
+      let canPlace = true;
+      for (let r = sr; r < sr + 5; r++) {
+        for (let c = sc; c < sc + 5; c++) {
+          if (terrain[r][c] !== 0) canPlace = false;
         }
       }
-    }
-
-    for (let c = 0; c < SIZE; c++) {
-      let total = 0;
-      let filled = 0;
-      for (let r = 0; r < SIZE; r++) {
-        if (solution[r][c]) total++;
-        if (board[r][c] === FILLED) filled++;
-      }
-      if (total === filled) {
-        for (let r = 0; r < SIZE; r++) {
-          if (solution[r][c] === 0 && board[r][c] === UNKNOWN && !isBlocked(r, c)) {
-            board[r][c] = EMPTY;
-            changed = true;
+      if (canPlace) {
+        for (let r = sr; r < sr + 5; r++) {
+          for (let c = sc; c < sc + 5; c++) {
+            terrain[r][c] = 1;
+            hasGrassRow[r] = true;
+            hasGrassCol[c] = true;
           }
         }
+        placed = true;
       }
     }
-  }
-}
+  } else if (mode === 1) { // 冰方块
+    const positions = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) positions.push([r, c]);
+    shuffle(positions);
+    for (let i = 0; i < 5; i++) {
+      const [r, c] = positions[i];
+      terrain[r][c] = 2;
+    }
+  } // normal mode (mode === 2): all empty, no special terrain
 
-function listSkillTargets() {
-  const list = [];
+  // initial progress always 0 for locked start
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      // 技能不能作用于草方块/冰块
-      if (isPlayableUnknown(r, c)) list.push([r, c]);
+      unlockProgress[r][c] = 0;
     }
   }
-  return list;
+
+  updateHasGrassStatus();
 }
 
-// ===============================
-// 锤子
-// ===============================
-
-function useHammer() {
-  if (!canPlay()) return;
-  if (tools.hammer <= 0) return;
-
-  const list = listSkillTargets();
-  if (!list.length) {
-    showMessage("🔨 没有可揭示的非草/非冰格子", "msg-info");
-    return;
-  }
-
-  const p = list[Math.floor(Math.random() * list.length)];
-  board[p[0]][p[1]] = solution[p[0]][p[1]] ? FILLED : EMPTY;
-  tools.hammer--;
-  updateStatus();
-  autoFill();
-  afterAnyBoardChange();
-  updateBoard();
-  checkWin();
-  saveCurrent();
-  showMessage("🔨 锤子已揭示 1 个可操作格子", "msg-info");
+function isUnlocked(r, c) {
+  if (terrain[r][c] === 0) return true;
+  const t = terrain[r][c];
+  const need = t === 1 ? 1 : 4;
+  const maxPossible = getMaxNeighbors(r, c);
+  const effectiveNeed = Math.min(need, maxPossible);
+  return unlockProgress[r][c] >= effectiveNeed;
 }
 
-// ===============================
-// 磁铁
-// ===============================
-
-function useMagnet() {
-  if (!canPlay()) return;
-  if (tools.magnet <= 0) return;
-
-  let revealed = 0;
-  for (let i = 0; i < 3; i++) {
-    const list = listSkillTargets();
-    if (!list.length) break;
-    const p = list[Math.floor(Math.random() * list.length)];
-    board[p[0]][p[1]] = solution[p[0]][p[1]] ? FILLED : EMPTY;
-    revealed++;
-  }
-
-  if (!revealed) {
-    showMessage("🧲 没有可揭示的非草/非冰格子", "msg-info");
-    return;
-  }
-
-  tools.magnet--;
-  updateStatus();
-  autoFill();
-  afterAnyBoardChange();
-  updateBoard();
-  checkWin();
-  saveCurrent();
-  showMessage(`🧲 磁铁揭示了 ${revealed} 个可操作格子`, "msg-info");
-}
-
-// ===============================
-// 飞机：只能揭示没被隐藏的行/列
-// ===============================
-
-function usePlane() {
-  if (!canPlay()) return;
-  if (tools.plane <= 0) return;
-
-  const type = prompt("输入 row 或 col（仅可选择数字未隐藏的行/列）");
-  if (type == null) return;
-  const normalized = String(type).trim().toLowerCase();
-  const index = Number(prompt("输入编号 1-15")) - 1;
-  if (!Number.isInteger(index) || index < 0 || index >= SIZE) {
-    showMessage("✈️ 编号无效", "msg-error");
-    return;
-  }
-
-  if (normalized === "row") {
-    if (isRowHidden(index)) {
-      showMessage("✈️ 该行被草/冰隐藏，飞机无法揭示", "msg-error");
-      return;
-    }
+// 更新草方块/冰方块剩余状态（用于提示隐藏逻辑）
+function updateHasGrassStatus() {
+  hasGrassRow = Array(SIZE).fill(false);
+  hasGrassCol = Array(SIZE).fill(false);
+  for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      if (isBlocked(index, c)) continue;
-      board[index][c] = solution[index][c] ? FILLED : EMPTY;
+      if (terrain[r][c] === 1 || terrain[r][c] === 2) {
+        hasGrassRow[r] = true;
+        hasGrassCol[c] = true;
+      }
     }
-  } else if (normalized === "col") {
-    if (isColHidden(index)) {
-      showMessage("✈️ 该列被草/冰隐藏，飞机无法揭示", "msg-error");
-      return;
+  }
+}
+
+function updateTerrainUnlocks() {
+  let changed = false;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (terrain[r][c] === 0) continue;
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      let count = 0;
+      for (let [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) continue;
+        if (state[nr][nc] !== 0) count++;
+      }
+      const t = terrain[r][c];
+      const need = t === 1 ? 1 : 4;
+      const maxPossible = getMaxNeighbors(r, c);
+      const effectiveNeed = Math.min(need, maxPossible);
+      if (count >= effectiveNeed) {
+        unlockProgress[r][c] = effectiveNeed;
+        if (terrain[r][c] !== 0) {
+          const wasGrass = terrain[r][c] === 1;
+          terrain[r][c] = 0;
+          changed = true;
+        }
+      } else if (count > unlockProgress[r][c]) {
+        unlockProgress[r][c] = count;
+        changed = true;
+      }
     }
-    for (let r = 0; r < SIZE; r++) {
-      if (isBlocked(r, index)) continue;
-      board[r][index] = solution[r][index] ? FILLED : EMPTY;
+  }
+  if (changed) {
+    updateHasGrassStatus();
+    refreshHints();
+  }
+  return changed;
+}
+
+function paintCell(r, c, mode, erase) {
+  if (r < 0 || c < 0 || r >= SIZE || c >= SIZE) return false;
+  if (errorFlags[r][c] && !erase) return false;
+  if (mode === "fill") {
+    if (erase) {
+      if (state[r][c] !== 1) return false;
+      state[r][c] = 0;
+      errorFlags[r][c] = null;
+      renderCell(cells[r][c], r, c);
+      return true;
     }
+    if (state[r][c] === 1) return false;
+    if (solution[r][c] === 1) {
+      state[r][c] = 1;
+      errorFlags[r][c] = null;
+    } else {
+      state[r][c] = 2;
+      errorFlags[r][c] = "cross";
+      statusEl.classList.remove("win");
+      statusEl.textContent = "点错了：该格应为空，已标红显示 ×";
+    }
+    renderCell(cells[r][c], r, c);
+    return true;
+  }
+  if (erase) {
+    if (state[r][c] !== 2) return false;
+    state[r][c] = 0;
+    errorFlags[r][c] = null;
+    renderCell(cells[r][c], r, c);
+    return true;
+  }
+  if (state[r][c] === 2) return false;
+  if (solution[r][c] === 0) {
+    state[r][c] = 2;
+    errorFlags[r][c] = null;
   } else {
-    showMessage("✈️ 请输入 row 或 col", "msg-error");
-    return;
+    state[r][c] = 1;
+    errorFlags[r][c] = "fill";
+    statusEl.classList.remove("win");
+    statusEl.textContent = "点错了：该格应填充，已标红显示";
+  }
+  renderCell(cells[r][c], r, c);
+  return true;
+}
+
+function resolveErase(r, c, mode) {
+  if (errorFlags[r][c]) return false;
+  if (mode === "fill") return state[r][c] === 1;
+  return state[r][c] === 2;
+}
+
+function startDragSession(r, c, mode, pointerId) {
+  const erase = resolveErase(r, c, mode);
+  dragSession = { mode, erase, visited: new Set(), pointerId: pointerId ?? null };
+  boardEl.classList.add("dragging");
+  applyDragCell(r, c);
+}
+
+function applyDragCell(r, c) {
+  if (!dragSession) return;
+  const key = cellKey(r, c);
+  if (dragSession.visited.has(key)) return;
+  dragSession.visited.add(key);
+  if (paintCell(r, c, dragSession.mode, dragSession.erase)) {
+    afterPlayerMove();
+  }
+}
+
+function endDragSession() {
+  dragSession = null;
+  boardEl.classList.remove("dragging");
+  clearTouchPending();
+}
+
+function clearTouchPending() {
+  if (touchPending && touchPending.timer) clearTimeout(touchPending.timer);
+  touchPending = null;
+}
+
+function getCellFromPoint(clientX, clientY) {
+  // Try to find cell via elementFromPoint first (most reliable)
+  let hit = null;
+  const el = document.elementFromPoint(clientX, clientY);
+  if (el) {
+    let cell = el.closest ? el.closest(".cell") : null;
+    if (cell && boardEl.contains(cell)) {
+      hit = cell;
+    }
   }
 
-  tools.plane--;
-  updateStatus();
-  autoFill();
-  afterAnyBoardChange();
-  updateBoard();
-  checkWin();
-  saveCurrent();
-  showMessage("✈️ 飞机已揭示未隐藏的行/列（跳过草/冰）", "msg-info");
-}
+  // Fallback: if mouse is over board but no cell found, calculate by position
+  if (!hit) {
+    const rect = boardEl.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+      const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cell")) || 40;
+      const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gap")) || 1;
+      const step = cellSize + gap;
+      const c = Math.min(SIZE - 1, Math.max(0, Math.floor((clientX - rect.left) / step)));
+      const r = Math.min(SIZE - 1, Math.max(0, Math.floor((clientY - rect.top) / step)));
 
-// ===============================
-// 提示数字完成状态
-// ===============================
-
-function updateHints() {
-  const rows = document.querySelectorAll(".row-hint");
-  rows.forEach((div, r) => {
-    if (isRowHidden(r)) return;
-    const need = getHint(solution[r]);
-    const current = getHint(board[r].map((x) => (x === FILLED ? 1 : 0)));
-    [...div.children].forEach((span, i) => {
-      if (need[i] != null && current[i] === need[i]) span.classList.add("done");
-      else span.classList.remove("done");
-    });
-  });
-
-  const cols = document.querySelectorAll(".col-hint");
-  cols.forEach((div, c) => {
-    if (isColHidden(c)) return;
-    const arr = [];
-    const boardCol = [];
-    for (let r = 0; r < SIZE; r++) {
-      arr.push(solution[r][c]);
-      boardCol.push(board[r][c] === FILLED ? 1 : 0);
+      // Find the actual cell element by coords
+      const cellsAtPos = boardEl.querySelectorAll(`.cell[data-r="${r}"][data-c="${c}"]`);
+      if (cellsAtPos.length > 0) {
+        hit = cellsAtPos[0];
+      }
     }
-    const need = getHint(arr);
-    const current = getHint(boardCol);
-    [...div.children].forEach((span, i) => {
-      if (need[i] != null && current[i] === need[i]) span.classList.add("done");
-      else span.classList.remove("done");
-    });
-  });
+  }
+
+  if (hit) {
+    const r = Number(hit.dataset.r);
+    const c = Number(hit.dataset.c);
+    return { r, c };
+  }
+  return null;
 }
 
-// ===============================
-// 胜利判断
-// ===============================
+function bindBoardPointerEvents() {
+  boardEl.addEventListener("contextmenu", e => e.preventDefault());
+  boardEl.addEventListener("pointerdown", onBoardPointerDown);
+  boardEl.addEventListener("pointermove", onBoardPointerMove);
+  boardEl.addEventListener("pointerup", onBoardPointerUp);
+  boardEl.addEventListener("pointercancel", onBoardPointerUp);
+  window.addEventListener("pointerup", onBoardPointerUp);
+  window.addEventListener("pointercancel", onBoardPointerUp);
+}
+
+function onBoardPointerDown(e) {
+  const cell = e.target.closest && e.target.closest(".cell");
+  if (!cell || !boardEl.contains(cell)) return;
+  const r = Number(cell.dataset.r);
+  const c = Number(cell.dataset.c);
+  if (e.pointerType !== "touch") {
+    if (e.button !== 0 && e.button !== 2) return;
+    e.preventDefault();
+    const mode = e.button === 2 ? "cross" : drawMode;
+    startDragSession(r, c, mode, e.pointerId);
+    try { boardEl.setPointerCapture(e.pointerId); } catch (_) {}
+    return;
+  }
+  e.preventDefault();
+  clearTouchPending();
+  touchPending = {
+    pointerId: e.pointerId,
+    startR: r, startC: c, startX: e.clientX, startY: e.clientY,
+    longFired: false,
+    timer: setTimeout(() => {
+      if (!touchPending || touchPending.pointerId !== e.pointerId) return;
+      touchPending.longFired = true;
+      startDragSession(touchPending.startR, touchPending.startC, mobileXMode ? 'cross' : 'fill', e.pointerId);
+      if (navigator.vibrate) try { navigator.vibrate(15); } catch (_) {}
+    }, LONG_PRESS_MS),
+  };
+}
+
+function onBoardPointerMove(e) {
+  if (e.pointerType === "touch" && touchPending && !dragSession) {
+    if (touchPending.pointerId !== e.pointerId) return;
+    const dx = e.clientX - touchPending.startX;
+    const dy = e.clientY - touchPending.startY;
+    if (Math.hypot(dx, dy) >= 12) {
+      if (touchPending.timer) clearTimeout(touchPending.timer);
+      touchPending.timer = null;
+      startDragSession(touchPending.startR, touchPending.startC, mobileXMode ? 'cross' : 'fill', e.pointerId);
+    } else return;
+  }
+  if (!dragSession) return;
+  if (dragSession.pointerId != null && e.pointerId !== dragSession.pointerId) return;
+  const hit = getCellFromPoint(e.clientX, e.clientY);
+  if (hit) applyDragCell(hit.r, hit.c);
+}
+
+function onBoardPointerUp(e) {
+  if (e.pointerType === "touch" && touchPending && !dragSession && touchPending.pointerId === e.pointerId) {
+    if (touchPending.timer) clearTimeout(touchPending.timer);
+    if (!touchPending.longFired) {
+      startDragSession(touchPending.startR, touchPending.startC, "fill", e.pointerId);
+    }
+  }
+  if (dragSession && dragSession.pointerId === e.pointerId) {
+    endDragSession();
+  } else if (touchPending && touchPending.pointerId === e.pointerId) {
+    clearTouchPending();
+  }
+}
+
+// ======================
+// 游戏核心函数
+// ======================
+function afterPlayerMove() {
+  const terrainChanged = updateTerrainUnlocks();
+  if (terrainChanged) {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        renderCell(cells[r][c], r, c);
+      }
+    }
+  }
+  checkWin();
+  // Auto mark remaining unrevealed cells with 'x' if all filled cells revealed in row/col
+  // and change hint number prompt when a continuous block is fully revealed
+  for (let r = 0; r < SIZE; r++) {
+    autoCrossRow(r);
+  }
+  for (let c = 0; c < SIZE; c++) {
+    autoCrossCol(c);
+  }
+  checkWin();
+  updateHintStyles();
+}
 
 function checkWin() {
-  // 仍有草/冰时不可通关
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      if (isBlocked(r, c)) return;
-      if (solution[r][c] === 1 && board[r][c] !== FILLED) return;
-      if (solution[r][c] === 0 && board[r][c] === FILLED) return;
+      const need = solution[r][c] === 1;
+      const painted = state[r][c] === 1;
+      if (need !== painted) {
+        statusEl.classList.remove("win");
+        return false;
+      }
     }
   }
-
-  clearInterval(timer);
-  const star = calculateStar();
-  gameOver = true;
-  const stage = (currentLevel && currentLevel.stage) || 1;
-  showMessage(
-    `🎉 第 ${stage} 关完成!<br>${"⭐".repeat(star)}<br>时间：${formatTime(seconds)}<br>${MODE_LABELS[gameMode] || ""}<br>可以进入下一关`,
-    "msg-success",
-  );
-  showNextLevelBar();
-
-  saveRecord({
-    level: currentLevel.id,
-    mode: gameMode,
-    time: seconds,
-    star,
-    stage,
-    blocks: currentLevel.blocks,
-  });
-  clearSave();
+  statusEl.classList.add("win");
+  const errors = errorFlags.flat().filter(Boolean).length;
+  statusEl.textContent = errors ? `通关（含 ${errors} 处点错标红）` : "恭喜通关！涂色与后台答案完全一致";
+  return true;
 }
 
-function nextLevel() {
-  const next = typeof nextRandomLevel === "function"
-    ? nextRandomLevel(currentLevel, gameMode)
-    : createRandomLevel({
-        stage: ((currentLevel && currentLevel.stage) || 1) + 1,
-        name: "第 " + (((currentLevel && currentLevel.stage) || 1) + 1) + " 关",
-        density: (currentLevel && currentLevel.density) || "mid",
+function createBoard() {
+  if (!boardEl) return;
+  clearChildren(boardEl);
+  state = [];
+  errorFlags = [];
+  if (!cells) cells = [];
+  cells.length = 0;
+  for (let r = 0; r < SIZE; r++) {
+    cells[r] = [];
+    state[r] = [];
+    errorFlags[r] = [];
+    for (let c = 0; c < SIZE; c++) {
+      state[r][c] = 0;
+      errorFlags[r][c] = null;
+      var cell = document.createElement("div");
+      cell.dataset.r = String(r);
+      cell.dataset.c = String(c);
+      cell.onclick = () => {
+        if (state[r][c] === 1) state[r][c] = 0;
+        else if (solution[r][c] === 1) state[r][c] = 1;
+        else { state[r][c] = 2; errorFlags[r][c] = "cross"; statusEl.classList.remove("win"); statusEl.textContent = "点错了：该格应为空，已标红显示 ×"; }
+        renderCell(cell, r, c);
+        afterPlayerMove();
+      };
+      cell.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (state[r][c] === 2) state[r][c] = 0;
+        else if (solution[r][c] === 0) state[r][c] = 2;
+        else { state[r][c] = 1; errorFlags[r][c] = "fill"; statusEl.classList.remove("win"); statusEl.textContent = "点错了：该格应填充，已标红显示"; }
+        renderCell(cell, r, c);
+        afterPlayerMove();
+      };
+      boardEl.appendChild(cell);
+      cells[r][c] = cell;
+    }
+  }
+}
+
+function renderCell(el, r, c) {
+  el.className = "cell";
+  el.innerHTML = "";
+  const err = errorFlags[r] && errorFlags[r][c];
+  if (err === "fill") {
+    el.classList.add("error-fill");
+    return;
+  }
+  if (err === "cross") {
+    el.classList.add("error-cross");
+    el.innerHTML = "×";
+    return;
+  }
+  if (state[r][c] === 1) el.classList.add("green");
+  if (state[r][c] === 2) {
+    el.classList.add("cross");
+    el.innerHTML = "×";
+  }
+  const t = terrain[r][c];
+  if (t === 1) {
+    el.classList.add("terrain-grass");
+    el.innerHTML = getTerrainSVG(1, isUnlocked(r, c), unlockProgress[r][c]);
+    el.classList.toggle("locked", !isUnlocked(r, c));
+    if (isUnlocked(r, c)) {
+      el.classList.add("has-progress");
+      el.setAttribute("data-progress", unlockProgress[r][c] + "/1");
+    }
+  } else if (t === 2) {
+    el.classList.add("terrain-ice");
+    el.innerHTML = getTerrainSVG(2, isUnlocked(r, c), unlockProgress[r][c]);
+    el.classList.toggle("locked", !isUnlocked(r, c));
+    if (isUnlocked(r, c)) {
+      el.classList.add("has-progress");
+      el.setAttribute("data-progress", unlockProgress[r][c] + "/4");
+    }
+  }
+}
+
+function createHints() {
+  if (!rowHintsEl || !colHintsEl) return;
+  clearChildren(rowHintsEl);
+  clearChildren(colHintsEl);
+  rows.forEach((blocks, r) => {
+    const div = document.createElement("div");
+    div.className = "row-tip";
+    blocks.forEach((block) => {
+      const span = document.createElement("span");
+      span.className = "number";
+      if (hasGrassRow[r]) {
+        span.innerText = '     '; // 固定空白占位（5个字符）
+        span.classList.add('hidden');
+      } else {
+        span.innerText = block.count;
+      }
+      span.dataset.block = JSON.stringify(block);
+      div.appendChild(span);
+    });
+    rowHintsEl.appendChild(div);
+  });
+  cols.forEach((blocks, c) => {
+    const div = document.createElement("div");
+    div.className = "col-tip";
+    blocks.forEach((block) => {
+      const span = document.createElement("span");
+      span.className = "number";
+      if (hasGrassCol[c]) {
+        span.innerText = '     '; // 固定空白占位（5个字符）
+        span.classList.add('hidden');
+      } else {
+        span.innerText = block.count;
+      }
+      span.dataset.block = JSON.stringify(block);
+      div.appendChild(span);
+    });
+    colHintsEl.appendChild(div);
+  });
+}
+
+function refreshHints() {
+  if (!rowHintsEl || !colHintsEl) return;
+  // 根据当前 hasGrassRow / hasGrassCol 重新设置数字文本（空白占位或真实数字）
+  const rowNumberElements = rowHintsEl.querySelectorAll('.number');
+  let idx = 0;
+  rows.forEach((blocks, r) => {
+    blocks.forEach((block) => {
+      const span = rowNumberElements[idx];
+      if (span) {
+        if (hasGrassRow[r]) {
+          span.innerText = '     ';
+          span.classList.add('hidden');
+        } else {
+          span.innerText = block.count;
+          span.classList.remove('hidden');
+        }
+      }
+      idx++;
+    });
+  });
+
+  const colNumberElements = colHintsEl.querySelectorAll('.number');
+  let colIdx = 0;
+  cols.forEach((blocks, c) => {
+    blocks.forEach((block) => {
+      const span = colNumberElements[colIdx];
+      if (span) {
+        if (hasGrassCol[c]) {
+          span.innerText = '     ';
+          span.classList.add('hidden');
+        } else {
+          span.innerText = block.count;
+          span.classList.remove('hidden');
+        }
+      }
+      colIdx++;
+    });
+  });
+}
+
+function clearChildren(el) {
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function countFilled(grid) {
+  return grid.reduce((sum, row) => sum + row.filter(cell => cell === 1).length, 0);
+}
+
+function resetBoard() {
+  state = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+  errorFlags = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+  if (cells && cells.length > 0) {
+    cells.forEach(row => {
+      row.forEach(el => {
+        if (el) {
+          el.className = "cell";
+          el.innerHTML = "";
+          el.classList.remove("solved");
+        }
       });
-  loadLevel(next, gameMode);
-  show("gamePage");
-}
-
-function calculateStar() {
-  if (life >= 5 && seconds < 300) return 3;
-  if (life >= 3) return 2;
-  return 1;
-}
-
-function serializeMask(mask) {
-  const out = [];
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      if (mask[r][c]) out.push(cellKey(r, c));
-    }
-  }
-  return out;
-}
-
-function deserializeMask(list) {
-  const mask = emptyMask();
-  (list || []).forEach((key) => {
-    const [r, c] = key.split(",").map(Number);
-    if (inBounds(r, c)) mask[r][c] = true;
-  });
-  return mask;
-}
-
-function saveCurrent() {
-  if (!currentLevel) return;
-  saveGame({
-    level: currentLevel.id,
-    mode: gameMode,
-    solution,
-    board,
-    life,
-    tools,
-    seconds,
-    errorCells: [...errorCells],
-    gameOver,
-    grass: serializeMask(grassMap),
-    ice: serializeMask(iceMap),
-    levelSnapshot: currentLevel,
-  });
-}
-
-function restoreGame() {
-  const data = loadGame();
-  if (!data) return;
-
-  // 优先用存档快照，避免 getLevel 重新随机导致答案变化
-  let level = data.levelSnapshot;
-  if (!level && data.solution) {
-    level = {
-      id: data.level,
-      name: "继续挑战",
-      difficulty: "存档",
-      stage: (data.levelSnapshot && data.levelSnapshot.stage) || 1,
-      blocks: data.solution.flat().filter(Boolean).length,
-      solution: data.solution,
-    };
-  }
-  if (!level) level = getLevel(data.level);
-  if (!level && String(data.level).startsWith("daily_")) {
-    level = getDailyLevel({ mode: data.mode });
-  }
-  if (!level) return;
-
-  currentLevel = level;
-  gameMode = data.mode || MODE_CLASSIC;
-  solution = data.solution;
-  board = data.board;
-  life = data.life;
-  tools = data.tools;
-  seconds = data.seconds;
-  errorCells = new Set(data.errorCells || []);
-  gameOver = !!data.gameOver || life <= 0;
-  grassMap = deserializeMask(data.grass);
-  iceMap = deserializeMask(data.ice);
-  startTime = Date.now() - seconds * 1000;
-
-  hideNextLevelBar();
-  updateModeUI();
-  updateStatus();
-  renderTips();
-  renderBoard();
-  startTimer();
-  if (gameOver) {
-    clearInterval(timer);
-    // 若已通关仍显示下一关入口
-    let won = true;
+    });
+    // re-render terrain
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
-        if (isBlocked(r, c) || (solution[r][c] === 1 && board[r][c] !== FILLED) || (solution[r][c] === 0 && board[r][c] === FILLED)) {
-          won = false;
+        renderCell(cells[r][c], r, c);
+      }
+    }
+    refreshHints();
+  }
+  updateHintStyles();
+  checkWin();
+  statusEl.classList.remove("win");
+  statusEl.textContent = "棋盘已清空";
+}
+
+function saveGeneration(filled, target) {
+  const modeNames = ['草方块', '冰方块', '普通模式'];
+  const record = {
+    date: new Date().toLocaleDateString('zh-CN'),
+    mode: currentMode,
+    filled,
+    target
+  };
+  generationHistory.push(record);
+  localStorage.setItem('grassIceGameHistory', JSON.stringify(generationHistory));
+}
+
+function showRecords() {
+  if (generationHistory.length === 0) {
+    alert('暂无生成记录');
+    return;
+  }
+  let text = '生成记录：\n\n';
+  generationHistory.forEach((r, i) => {
+    const mode = r.mode === 0 ? '草方块' : '冰方块';
+    text += `${i + 1}. ${mode} - ${r.date} - 填充: ${r.filled}/${r.target}\n`;
+  });
+  alert(text);
+}
+
+// 【地形SVG生成器】草方块/冰方块模式专用
+function getTerrainSVG(type, unlocked, progress) {
+  let state = unlocked ? Math.min(4, Math.max(0, Math.floor(progress))) : 0;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 30 30">`;
+  if (type === 1) { // grass
+    svg += `
+      <rect width="100%" height="100%" fill="#166534"/>
+      <path d="M5 8 Q10 3 15 12 Q20 5 25 10" fill="#4ade80" stroke="#166534" stroke-width="2" />
+      <path d="M5 18 Q12 13 18 22 Q24 15 28 20" fill="#86efac" stroke="#166534" stroke-width="1.5" />
+    `;
+  } else if (type === 2) { // ice - 4 states
+    let iceFill = "#c7d2fe";
+    let iceStroke = "#4f46e5";
+    let shine1 = "rgba(255,255,255,0.7)";
+    let shine2 = "rgba(255,255,255,0.5)";
+    let cracks = "";
+    let opacity = 1;
+    if (!unlocked) {
+      opacity = 0.6;
+      iceFill = "#9ca3af";
+      iceStroke = "#6b7280";
+      shine1 = "rgba(255,255,255,0.3)";
+      shine2 = "rgba(255,255,255,0.2)";
+    } else {
+      switch (state) {
+        case 1: // 1/4 broken
+          cracks = `
+            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" opacity="0.8" />
+            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" opacity="0.7" />
+          `;
+          break;
+        case 2: // 1/2 broken
+          cracks = `
+            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
+            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+            <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
+          `;
+          break;
+        case 3: // 3/4 broken
+          cracks = `
+            <path d="M8 10 L12 8" stroke="#1e2937" stroke-width="3" stroke-linecap="round" />
+            <path d="M18 18 L22 15" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+            <path d="M10 20 L14 22" stroke="#1e2937" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M20 10 L24 12" stroke="#1e2937" stroke-width="2" stroke-linecap="round" />
+          `;
+          break;
+        case 4: // full
+          cracks = "";
+          break;
+      }
+    }
+    svg += `
+      <rect x="3" y="3" width="24" height="24" rx="3" fill="${iceFill}" stroke="${iceStroke}" stroke-width="2" opacity="${opacity}" />
+      <circle cx="9" cy="9" r="4" fill="${shine1}" />
+      <circle cx="21" cy="18" r="4" fill="${shine2}" />
+      ${cracks}
+    `;
+  }
+  svg += `</svg>`;
+  return svg;
+}
+
+// 初始化
+document.addEventListener("DOMContentLoaded", () => {
+  const seedInput = document.getElementById("seedInput");
+  const btnLoadSeed = document.getElementById("btnLoadSeed");
+  const btnExport = document.getElementById("btnExport");
+  const copyBtn = document.getElementById("btnCopy");
+  const exportTextEl = document.getElementById("exportText");
+  statusEl = document.getElementById("status");
+  boardEl = document.getElementById("board");
+  rowHintsEl = document.getElementById("rowHints");
+  colHintsEl = document.getElementById("colHints");
+
+  bindBoardPointerEvents();
+
+  // 添加复制按钮事件
+  
+function loadLevelBySeed(code) {
+  if (!code) return;
+  if (!statusEl) {
+    statusEl = document.getElementById("status");
+  }
+  if (!statusEl) return;
+  const parts = code.split(':');
+  if (parts.length < 2) {
+    statusEl.textContent = "格式错误";
+    return;
+  }
+
+  const mode = parseInt(parts[0]) || 0;
+  const seed = parseInt(parts[1]) || Date.now();
+  const params = parts[2] || '';
+
+  statusEl.textContent = `正在加载模式${mode} (Seed=${seed})...`;
+
+  const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
+
+  solution = grid;
+  rows = solution.map(row => getHintBlocks(row));
+  cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+  createTerrain();
+  createBoard();
+  createHints();
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      renderCell(cells[r][c], r, c);
+    }
+  }
+  refreshHints();
+  exportLevelText();
+  statusEl.textContent = `已加载模式${mode} (Seed=${seed}) 填充: ${filled}`;
+}
+
+// ==================== 新版关卡生成系统 ====================
+// 使用 "模式ID + Seed + 参数" 编码方案
+// 目标：同一Seed + 模式 = 同一关卡
+// 紧凑数据结构 < 10字节
+
+function generateSolutionWithSeed(mode, seed) {
+  const rng = (s) => {
+    let x = Math.sin(s) * 10000;
+    return x - Math.floor(x);
+  };
+
+  let grid = [];
+  let filled = 0;
+  let target = 0;
+
+  switch (mode) {
+    case 0: // 普通模式 - 高密度布局，保证每个种子生成的地图有效方块 >= target (165+)
+      target = 165;
+      grid = [];
+      filled = 0;
+      for (let r = 0; r < SIZE; r++) {
+        grid[r] = [];
+        for (let c = 0; c < SIZE; c++) {
+          const val = Math.floor(rng(seed + r * 100 + c) * 5);
+          grid[r][c] = val < 4 ? 1 : 0;
+          if (grid[r][c] === 1) filled++;
+        }
+      }
+      if (filled < target) {
+        let zeros = [];
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) zeros.push([r, c]);
+          }
+        }
+        zeros.sort((a, b) => (a[0] * SIZE + a[1]) - (b[0] * SIZE + b[1]));
+        for (let i = 0; i < zeros.length && filled < target; i++) {
+          const [r, c] = zeros[i];
+          grid[r][c] = 1;
+          filled++;
+        }
+      }
+      break;
+
+    case 1: // 冰块模式 - 5个随机离散冰块
+      const positions = [];
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (r < 2 || r > SIZE - 3 || c < 2 || c > SIZE - 3) continue; // 避免边缘
+          positions.push([r, c]);
+        }
+      }
+      const shuffled = positions.sort(() => rng(seed) - 0.5);
+      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      for (let i = 0; i < 5; i++) {
+        const [r, c] = shuffled[i];
+        grid[r][c] = 1;
+        filled++;
+      }
+      target = 5;
+      break;
+
+    case 2: // 草地模式 - 单个5×5连续区域
+      const sr = Math.floor(rng(seed) * (SIZE - 4));
+      const sc = Math.floor(rng(seed + 1) * (SIZE - 4));
+      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      for (let r = sr; r < sr + 5; r++) {
+        for (let c = sc; c < sc + 5; c++) {
+          grid[r][c] = 1;
+        }
+      }
+      filled = 25;
+      target = 25;
+      break;
+
+    default:
+      // fallback 普通模式 - 高密度布局，保证每个种子生成的地图有效方块 >= target (165+)
+      target = 165;
+      grid = [];
+      filled = 0;
+      for (let r = 0; r < SIZE; r++) {
+        grid[r] = [];
+        for (let c = 0; c < SIZE; c++) {
+          const val = Math.floor(rng(seed + r * 100 + c) * 5);
+          grid[r][c] = val < 4 ? 1 : 0;
+          if (grid[r][c] === 1) filled++;
+        }
+      }
+      if (filled < target) {
+        let zeros = [];
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) zeros.push([r, c]);
+          }
+        }
+        zeros.sort((a, b) => (a[0] * SIZE + a[1]) - (b[0] * SIZE + b[1]));
+        for (let i = 0; i < zeros.length && filled < target; i++) {
+          const [r, c] = zeros[i];
+          grid[r][c] = 1;
+          filled++;
+        }
+      }
+      break;
+  }
+
+  return { grid, filled, target };
+}
+
+btnLoadSeed.addEventListener("click", () => {
+  loadLevelBySeed(seedInput.value.trim());
+});
+
+
+seedInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") loadLevelBySeed(seedInput.value.trim());
+});
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", copyToClipboard);
+  }
+
+  // 加载生成记录
+  const savedHistory = localStorage.getItem('grassIceGameHistory');
+  if (savedHistory) {
+    generationHistory = JSON.parse(savedHistory);
+  }
+
+  // 清空棋盘
+  const btnReset = document.getElementById("btnReset");
+  if (btnReset) {
+    btnReset.addEventListener("click", () => {
+      resetBoard();
+    });
+  }
+
+  // 生成记录
+  const btnRecords = document.getElementById("btnRecords");
+  if (btnRecords) {
+    btnRecords.addEventListener("click", showRecords);
+  }
+
+  // 随机生成关卡
+  const btnGenerate = document.getElementById("btnGenerate");
+  if (btnGenerate) {
+    btnGenerate.addEventListener("click", () => {
+      generateFromSeed();
+    });
+    seedInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        generateFromSeed();
+      }
+    });
+  }
+
+  function newLevel() {
+    if (!statusEl) {
+      statusEl = document.getElementById("status");
+      if (!statusEl) return;
+    }
+    statusEl.textContent = "正在生成关卡...";
+
+    // 随机选择模式 (0=普通, 1=冰块, 2=草地)
+    const mode = Math.floor(Math.random() * 3);
+    const seed = Math.floor(Math.random() * 99999999) + 10000000; // 8位种子
+
+    const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
+
+    solution = grid;
+    if (!solution) solution = [];
+    rows = solution.map(row => getHintBlocks(row));
+    cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
+    if (!rows || !cols) return;
+    cells = [];
+    createTerrain();
+    createBoard();
+    createHints();
+    refreshHints();
+    if (!cells) return;
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (cells[r] && cells[r][c]) {
+          renderCell(cells[r][c], r, c);
         }
       }
     }
-    if (won) showNextLevelBar();
+    exportLevelText();
+    statusEl.textContent = `关卡生成完成！填充: ${filled} (模式${mode}, Seed=${seed})`;
   }
-  show("gamePage");
-}
 
-function formatTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-}
+  function exportLevelText() {
+    if (!solution || solution.length === 0) return;
+    let text = '';
+    for (let row of solution) {
+      text += row.join(' ') + '\n';
+    }
+    exportTextEl.value = text.trim();
+  }
 
-window.onload = function () {
-  restoreGame();
-};
+  function showLoading() {
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) overlay.style.display = "flex";
+  }
+
+  function hideLoading() {
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  function generateFromSeed() {
+    if (isGenerating) return;
+    isGenerating = true;
+    if (btnGenerate) btnGenerate.disabled = true;
+    if (btnRecords) btnRecords.disabled = true;
+    if (btnReset) btnReset.disabled = true;
+
+    newLevel();
+
+    setTimeout(() => {
+      isGenerating = false;
+      if (btnGenerate) btnGenerate.disabled = false;
+      if (btnRecords) btnRecords.disabled = false;
+      if (btnReset) btnReset.disabled = false;
+    }, 300);
+  }
+
+  // 模式切换（支持草/冰/普通，三种类型，持久化到 localStorage）
+  const btnModeGrass = document.getElementById("btnModeGrass");
+  const btnModeIce = document.getElementById("btnModeIce");
+  const btnModeNormal = document.getElementById("btnModeNormal");
+
+  function setMode(mode) {
+    currentMode = mode;
+    if (btnModeGrass) btnModeGrass.classList.toggle('active', mode === 0);
+    if (btnModeIce) btnModeIce.classList.toggle('active', mode === 1);
+    if (btnModeNormal) btnModeNormal.classList.toggle('active', mode === 2);
+    localStorage.setItem('gameMode', mode);
+  }
+
+  // 恢复持久化模式（不同tab保持相同选择）
+  const savedMode = parseInt(localStorage.getItem('gameMode') || '0');
+  if (btnModeGrass && btnModeIce && btnModeNormal) {
+    btnModeGrass.addEventListener("click", () => setMode(0));
+    btnModeIce.addEventListener("click", () => setMode(1));
+    btnModeNormal.addEventListener("click", () => setMode(2));
+
+    // 设置初始 active 状态
+    setMode(savedMode);
+  }
+
+  // 手机长按拖拽模式切换（打X开关）
+  const xModeToggle = document.getElementById("xMode");
+  if (xModeToggle) {
+    xModeToggle.addEventListener("change", () => {
+      mobileXMode = xModeToggle.checked;
+    });
+  }
+
+  // 显示加载动画（仅用于首次加载）
+  showLoading();
+
+  // 启动游戏（生成逻辑较快，立即执行避免卡住）
+  setTimeout(() => {
+    hideLoading();
+    newLevel();
+    statusEl.textContent = "游戏已就绪";
+  }, 80); // 极短延迟
+
+  function copyToClipboard() {
+    if (!exportTextEl) exportTextEl = document.getElementById("exportText");
+    const text = exportTextEl ? exportTextEl.value : '';
+    if (!text) return;
+    if (!statusEl) statusEl = document.getElementById("status");
+    navigator.clipboard.writeText(text).then(() => {
+      const original = statusEl ? statusEl.textContent : '';
+      statusEl.textContent = "已复制到剪贴板 ✓";
+      setTimeout(() => { 
+        if (statusEl) statusEl.textContent = original; 
+      }, 2000);
+    }).catch(() => {
+      if (statusEl) statusEl.textContent = "复制失败，请手动复制";
+    });
+  }
+});

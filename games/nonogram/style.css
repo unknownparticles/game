@@ -108,6 +108,7 @@ button.secondary:hover { background: #666; }
   grid-template-columns: repeat(15, var(--cell));
   gap: var(--gap);
   width: fit-content;
+  touch-action: none;
 }
 
 .board {
