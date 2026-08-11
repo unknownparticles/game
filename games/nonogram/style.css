@@ -763,11 +763,17 @@ h1 {
 
   .game-header {
     align-items: flex-start;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
+  }
+
+  .eyebrow,
+  .subtitle {
+    display: none;
   }
 
   h1 {
-    font-size: 28px;
+    margin-bottom: 0;
+    font-size: 22px;
   }
 
   .header-note {
@@ -775,30 +781,32 @@ h1 {
   }
 
   .control-panel {
-    padding: 12px;
+    padding: 8px;
   }
 
   .control-row {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
   }
 
   .mode-toggle {
-    width: 100%;
+    flex: 1;
   }
 
   .mode-btn {
     flex: 1;
-    padding: 0 7px;
-    font-size: 12px;
+    min-height: 30px;
+    padding: 0 4px;
+    font-size: 11px;
   }
 
   .toggle-control {
     align-self: flex-start;
+    gap: 5px;
+    font-size: 11px;
   }
 
   .secondary-controls {
-    gap: 10px;
+    gap: 6px;
   }
 
   .seed-control,
@@ -808,16 +816,18 @@ h1 {
   }
 
   .secondary-controls {
-    padding-top: 10px;
+    padding-top: 8px;
   }
 
   .tool-row {
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
   }
 
   .tool-heading {
-    min-width: 56px;
+    min-width: 48px;
   }
 
   .tool-heading span {
@@ -831,8 +841,11 @@ h1 {
 
   .tool-button {
     min-width: 0;
+    min-height: 32px;
     flex: 1;
-    padding: 0 5px;
+    gap: 3px;
+    padding: 0 3px;
+    font-size: 11px;
   }
 
   .plane-picker {
@@ -859,29 +872,34 @@ h1 {
 
   .action-group .button {
     flex: 1 1 calc(50% - 8px);
+    min-height: 30px;
     padding: 0 8px;
+  }
+
+  .status {
+    min-height: 16px;
+    margin-top: 6px;
+    font-size: 11px;
   }
 
   .game-wrap {
     width: 100%;
-    height: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
-    padding: 14px 8px;
+    height: auto;
+    overflow: hidden;
+    padding: 8px 4px;
   }
 
   .game-layout {
     display: flex;
     align-items: stretch;
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 0 0 auto;
     width: 100%;
+    margin-top: 8px;
   }
 
   .game-stage {
-    display: flex;
+    display: block;
     width: 100%;
-    min-height: 0;
   }
 
 .col-tip {
@@ -922,17 +940,16 @@ h1 {
 
 @media (max-width: 360px) {
   :root {
-    --cell: 16px;
+    --cell: min(16px, calc((100vw - 96px) / 15));
     --hint-w: 54px;
   }
 
   .page-shell {
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding: 6px;
   }
 
   .game-wrap {
-    padding-right: 6px;
-    padding-left: 6px;
+    padding-right: 4px;
+    padding-left: 4px;
   }
 }
