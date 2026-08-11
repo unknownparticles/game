@@ -139,6 +139,107 @@ h1 {
   padding-top: 14px;
 }
 
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.tool-heading {
+  display: grid;
+  min-width: 130px;
+  gap: 3px;
+}
+
+.tool-heading strong {
+  font-size: 13px;
+}
+
+.tool-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tool-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.tool-button {
+  display: inline-flex;
+  min-width: 92px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tool-button:hover,
+.tool-button.active {
+  border-color: var(--amber);
+  background: #3b3b32;
+}
+
+.tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.tool-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tool-button b {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #101a21;
+  color: var(--amber);
+  font-size: 11px;
+}
+
+.plane-picker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plane-picker select {
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #101a21;
+  color: var(--text);
+}
+
+.plane-picker .button {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .mode-toggle {
   display: flex;
   min-width: 0;
@@ -443,6 +544,10 @@ h1 {
   box-shadow: inset 0 0 0 2px rgba(101, 169, 216, 0.7);
 }
 
+#board.tool-targeting .cell:not(.locked) {
+  cursor: crosshair;
+}
+
 .cell.green {
   background: var(--green);
 }
@@ -669,6 +774,37 @@ h1 {
 
   .secondary-controls {
     gap: 10px;
+  }
+
+  .tool-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .tool-heading {
+    min-width: 0;
+  }
+
+  .tool-actions {
+    width: 100%;
+  }
+
+  .tool-button {
+    min-width: 0;
+    flex: 1;
+    padding: 0 5px;
+  }
+
+  .plane-picker {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .plane-picker select {
+    min-width: 0;
+    flex: 1;
   }
 
   .seed-control,

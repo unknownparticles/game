@@ -36,6 +36,8 @@ let cells = [];
 let currentMode = MODE_GRASS;
 let currentSeed = 0;
 let generationHistory = [];
+let tools = { magnet: 1, plane: 1, hammer: 3 };
+let activeTool = null;
 
 // ======================
 // 拖拽交互
@@ -56,6 +58,161 @@ function getModeLabel(mode = currentMode) {
 function seededRandom(seed) {
   const value = Math.sin(seed) * 10000;
   return value - Math.floor(value);
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function updateToolUI() {
+  const counts = {
+    magnet: document.getElementById("magnetCount"),
+    plane: document.getElementById("planeCount"),
+    hammer: document.getElementById("hammerCount"),
+  };
+  const buttons = {
+    magnet: document.getElementById("btnMagnet"),
+    plane: document.getElementById("btnPlane"),
+    hammer: document.getElementById("btnHammer"),
+  };
+  Object.keys(tools).forEach((name) => {
+    if (counts[name]) counts[name].textContent = tools[name];
+    if (buttons[name]) {
+      buttons[name].disabled = tools[name] <= 0;
+      buttons[name].classList.toggle("active", activeTool === name);
+    }
+  });
+}
+
+function hidePlanePicker() {
+  const picker = document.getElementById("planePicker");
+  if (picker) picker.hidden = true;
+}
+
+function resetTools() {
+  tools = { magnet: 1, plane: 1, hammer: 3 };
+  activeTool = null;
+  if (boardEl) boardEl.classList.remove("tool-targeting");
+  hidePlanePicker();
+  updateToolUI();
+}
+
+function getToolCandidates() {
+  const candidates = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (state[r][c] === 0 && terrain[r][c] === 0) candidates.push([r, c]);
+    }
+  }
+  return candidates;
+}
+
+function revealWithTool(r, c) {
+  if (state[r][c] !== 0 || terrain[r][c] !== 0) return false;
+  state[r][c] = solution[r][c] === 1 ? 1 : 2;
+  errorFlags[r][c] = null;
+  renderCell(cells[r][c], r, c);
+  return true;
+}
+
+function finishToolUse(message) {
+  afterPlayerMove();
+  updateToolUI();
+  if (!statusEl.classList.contains("win")) statusEl.textContent = message;
+}
+
+function useMagnet() {
+  if (tools.magnet <= 0) return;
+  const candidates = shuffle(getToolCandidates());
+  const revealed = candidates.slice(0, 3).filter(([r, c]) => revealWithTool(r, c)).length;
+  if (revealed === 0) {
+    statusEl.textContent = "没有可供磁铁揭示的普通格子";
+    return;
+  }
+  tools.magnet = 0;
+  finishToolUse(`磁铁揭示了 ${revealed} 个格子`);
+}
+
+function activateHammer() {
+  if (tools.hammer <= 0) return;
+  activeTool = activeTool === "hammer" ? null : "hammer";
+  if (boardEl) boardEl.classList.toggle("tool-targeting", activeTool === "hammer");
+  updateToolUI();
+  statusEl.textContent = activeTool === "hammer" ? "锤子已就绪，请点击一个未揭示的普通格子" : "已取消锤子";
+}
+
+function useHammerOnCell(r, c) {
+  if (activeTool !== "hammer") return false;
+  if (!revealWithTool(r, c)) {
+    statusEl.textContent = "锤子不能作用于已揭示或冰/草方块";
+    return true;
+  }
+  tools.hammer--;
+  activeTool = null;
+  boardEl.classList.remove("tool-targeting");
+  finishToolUse("锤子揭示了 1 个格子");
+  return true;
+}
+
+function populatePlaneTargets() {
+  const select = document.getElementById("planeTarget");
+  if (!select) return;
+  clearChildren(select);
+  for (let i = 0; i < SIZE; i++) {
+    const row = document.createElement("option");
+    row.value = `row:${i}`;
+    row.textContent = `第 ${i + 1} 行`;
+    select.appendChild(row);
+  }
+  for (let i = 0; i < SIZE; i++) {
+    const col = document.createElement("option");
+    col.value = `col:${i}`;
+    col.textContent = `第 ${i + 1} 列`;
+    select.appendChild(col);
+  }
+}
+
+function openPlanePicker() {
+  if (tools.plane <= 0) return;
+  const picker = document.getElementById("planePicker");
+  if (picker) picker.hidden = false;
+  statusEl.textContent = "请选择飞机要揭示的行或列";
+}
+
+function cancelPlanePicker() {
+  hidePlanePicker();
+  if (!statusEl.classList.contains("win")) statusEl.textContent = "已取消飞机";
+}
+
+function usePlane() {
+  if (tools.plane <= 0) return;
+  const select = document.getElementById("planeTarget");
+  const [type, indexText] = (select?.value || "").split(":");
+  const index = Number(indexText);
+  const blocked = type === "row" ? hasGrassRow[index] : hasGrassCol[index];
+  if (!Number.isInteger(index) || index < 0 || index >= SIZE || !["row", "col"].includes(type)) {
+    statusEl.textContent = "请选择有效的行或列";
+    return;
+  }
+  if (blocked) {
+    statusEl.textContent = `第 ${index + 1}${type === "row" ? "行" : "列"}有冰/草方块，飞机无法使用`;
+    return;
+  }
+
+  const targets = [];
+  for (let i = 0; i < SIZE; i++) targets.push(type === "row" ? [index, i] : [i, index]);
+  const revealed = targets.filter(([r, c]) => revealWithTool(r, c)).length;
+  if (revealed === 0) {
+    statusEl.textContent = "所选行或列已经全部揭示";
+    return;
+  }
+  tools.plane = 0;
+  hidePlanePicker();
+  finishToolUse(`飞机揭示了第 ${index + 1}${type === "row" ? "行" : "列"}`);
 }
 
 function getHintBlocks(arr) {
@@ -391,6 +548,11 @@ function onBoardPointerDown(e) {
   if (!cell || !boardEl.contains(cell)) return;
   const r = Number(cell.dataset.r);
   const c = Number(cell.dataset.c);
+  if (activeTool === "hammer") {
+    e.preventDefault();
+    useHammerOnCell(r, c);
+    return;
+  }
   if (e.pointerType !== "touch") {
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
@@ -510,6 +672,7 @@ function createBoard() {
       cell.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
+        if (useHammerOnCell(r, c)) return;
         if (paintCell(r, c, "fill", resolveErase(r, c, "fill"))) {
           afterPlayerMove();
         }
@@ -649,6 +812,7 @@ function countFilled(grid) {
 }
 
 function resetBoard() {
+  resetTools();
   state = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
   errorFlags = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
   if (cells && cells.length > 0) {
@@ -765,12 +929,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const seedInput = document.getElementById("seedInput");
   const btnLoadSeed = document.getElementById("btnLoadSeed");
   const copyBtn = document.getElementById("btnCopy");
+  const btnMagnet = document.getElementById("btnMagnet");
+  const btnPlane = document.getElementById("btnPlane");
+  const btnHammer = document.getElementById("btnHammer");
+  const btnPlaneConfirm = document.getElementById("btnPlaneConfirm");
+  const btnPlaneCancel = document.getElementById("btnPlaneCancel");
   statusEl = document.getElementById("status");
   boardEl = document.getElementById("board");
   rowHintsEl = document.getElementById("rowHints");
   colHintsEl = document.getElementById("colHints");
 
   bindBoardPointerEvents();
+  populatePlaneTargets();
+  updateToolUI();
+
+  if (btnMagnet) btnMagnet.addEventListener("click", useMagnet);
+  if (btnPlane) btnPlane.addEventListener("click", openPlanePicker);
+  if (btnHammer) btnHammer.addEventListener("click", activateHammer);
+  if (btnPlaneConfirm) btnPlaneConfirm.addEventListener("click", usePlane);
+  if (btnPlaneCancel) btnPlaneCancel.addEventListener("click", cancelPlanePicker);
 
   // 添加复制按钮事件
   
@@ -793,6 +970,7 @@ function loadLevelBySeed(code) {
 
   setMode(mode, false);
   currentSeed = seed;
+  resetTools();
   statusEl.textContent = `正在加载${getModeLabel(mode)}...`;
 
   const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
@@ -911,6 +1089,7 @@ function generateSolutionWithSeed(mode, seed) {
 
     solution = grid;
     currentSeed = seed;
+    resetTools();
     if (!solution) solution = [];
     rows = solution.map(row => getHintBlocks(row));
     cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));

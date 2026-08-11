@@ -5,8 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>方块推理 · 数织挑战</title>
-  <link rel="stylesheet" href="style.css?v=20260811-4">
-  <script src="game.js?v=20260811-4" defer></script>
+  <link rel="stylesheet" href="style.css?v=20260811-5">
+  <script src="game.js?v=20260811-5" defer></script>
 </head>
 
 <body>
@@ -60,6 +60,36 @@
           <button id="btnReset" class="button button-muted" type="button">清空棋盘</button>
           <button id="btnRecords" class="button button-muted" type="button">生成记录</button>
           <button id="btnCopy" class="button button-muted" type="button">复制关卡码</button>
+        </div>
+      </div>
+
+      <div class="tool-row" aria-label="本局道具">
+        <div class="tool-heading">
+          <strong>本局道具</strong>
+          <span>揭示答案但不标记错误</span>
+        </div>
+        <div class="tool-actions">
+          <button id="btnMagnet" class="tool-button" type="button" title="随机揭示最多三个未揭示格子">
+            <span class="tool-icon" aria-hidden="true">🧲</span>
+            <span>磁铁</span>
+            <b id="magnetCount">1</b>
+          </button>
+          <button id="btnPlane" class="tool-button" type="button" title="选择一行或一列全部揭示">
+            <span class="tool-icon" aria-hidden="true">✈</span>
+            <span>飞机</span>
+            <b id="planeCount">1</b>
+          </button>
+          <button id="btnHammer" class="tool-button" type="button" title="点击一个未揭示的普通格子">
+            <span class="tool-icon" aria-hidden="true">🔨</span>
+            <span>锤子</span>
+            <b id="hammerCount">3</b>
+          </button>
+        </div>
+        <div id="planePicker" class="plane-picker" hidden>
+          <label for="planeTarget">飞机目标</label>
+          <select id="planeTarget"></select>
+          <button id="btnPlaneConfirm" class="button button-primary" type="button">揭示</button>
+          <button id="btnPlaneCancel" class="button button-muted" type="button">取消</button>
         </div>
       </div>
 
