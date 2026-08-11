@@ -17,6 +17,7 @@
   --blue: #65a9d8;
   --amber: #e9b861;
   --danger: #ef6b68;
+  --grid-divider: #172a34;
 }
 
 body {
@@ -339,6 +340,11 @@ h1 {
   gap: 3px;
 }
 
+.col-tip:nth-child(5),
+.col-tip:nth-child(10) {
+  border-right: 3px solid var(--grid-divider);
+}
+
 .main {
   display: flex;
   align-items: stretch;
@@ -361,6 +367,11 @@ h1 {
   gap: 4px;
   padding-right: 12px;
   overflow: visible;
+}
+
+.row-tip:nth-child(5),
+.row-tip:nth-child(10) {
+  border-bottom: 3px solid var(--grid-divider);
 }
 
 .number {
@@ -416,6 +427,16 @@ h1 {
   font-weight: 700;
   line-height: 1;
   user-select: none;
+}
+
+#board .cell:nth-child(15n + 5),
+#board .cell:nth-child(15n + 10) {
+  border-right: 3px solid var(--grid-divider);
+}
+
+#board .cell:nth-child(n + 61):nth-child(-n + 75),
+#board .cell:nth-child(n + 136):nth-child(-n + 150) {
+  border-bottom: 3px solid var(--grid-divider);
 }
 
 .cell:hover {
@@ -670,7 +691,7 @@ h1 {
     padding: 14px 8px;
   }
 
-  .col-tip {
+.col-tip {
     height: 76px;
   }
 
@@ -730,11 +751,23 @@ h1 {
 
 @media (max-width: 400px) {
   :root {
-    --cell: 20px;
-    --hint-w: 80px;
+    --cell: 17px;
+    --hint-w: 58px;
   }
 
   .mode-btn {
     font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --cell: 16px;
+    --hint-w: 54px;
+  }
+
+  .game-wrap {
+    padding-right: 6px;
+    padding-left: 6px;
   }
 }
