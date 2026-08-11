@@ -30,6 +30,7 @@ let hasGrassCol = Array(SIZE).fill(false);
 let solution = [];
 let state = [];
 let errorFlags = [];
+let toolRevealed = [];
 let rows = [];
 let cols = [];
 let cells = [];
@@ -115,6 +116,7 @@ function revealWithTool(r, c) {
   if (state[r][c] !== 0 || terrain[r][c] !== 0) return false;
   state[r][c] = solution[r][c] === 1 ? 1 : 2;
   errorFlags[r][c] = null;
+  toolRevealed[r][c] = true;
   renderCell(cells[r][c], r, c);
   return true;
 }
@@ -418,6 +420,10 @@ function updateTerrainUnlocks() {
 
 function paintCell(r, c, mode, erase) {
   if (r < 0 || c < 0 || r >= SIZE || c >= SIZE) return false;
+  if (toolRevealed[r][c]) {
+    statusEl.textContent = "该格已由道具揭示，不能修改";
+    return false;
+  }
   if (terrain[r][c] !== 0 && !isUnlocked(r, c)) return false;
   if (errorFlags[r][c] && !erase) return false;
   if (mode === "fill") {
@@ -654,15 +660,18 @@ function createBoard() {
   clearChildren(boardEl);
   state = [];
   errorFlags = [];
+  toolRevealed = [];
   if (!cells) cells = [];
   cells.length = 0;
   for (let r = 0; r < SIZE; r++) {
     cells[r] = [];
     state[r] = [];
     errorFlags[r] = [];
+    toolRevealed[r] = [];
     for (let c = 0; c < SIZE; c++) {
       state[r][c] = 0;
       errorFlags[r][c] = null;
+      toolRevealed[r][c] = false;
       var cell = document.createElement("div");
       cell.dataset.r = String(r);
       cell.dataset.c = String(c);
@@ -687,6 +696,7 @@ function createBoard() {
 function renderCell(el, r, c) {
   el.className = "cell";
   el.innerHTML = "";
+  if (toolRevealed[r] && toolRevealed[r][c]) el.classList.add("tool-revealed");
   const err = errorFlags[r] && errorFlags[r][c];
   if (err === "fill") {
     el.classList.add("error-fill");
@@ -815,6 +825,7 @@ function resetBoard() {
   resetTools();
   state = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
   errorFlags = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+  toolRevealed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
   if (cells && cells.length > 0) {
     cells.forEach(row => {
       row.forEach(el => {

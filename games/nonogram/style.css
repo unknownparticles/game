@@ -545,8 +545,17 @@ h1 {
   box-shadow: inset 0 0 0 2px rgba(101, 169, 216, 0.7);
 }
 
+.cell.tool-revealed {
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+
 #board.tool-targeting .cell:not(.locked) {
   cursor: crosshair;
+}
+
+#board.tool-targeting .cell.tool-revealed {
+  cursor: not-allowed;
 }
 
 .cell.green {
