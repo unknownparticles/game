@@ -2,70 +2,99 @@
 <html lang="zh-CN">
 
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>15×15 数织 — 草方块 / 冰方块 / 普通模式</title>
-<link rel="stylesheet" href="style.css">
-<script src="game.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>方块推理 · 数织挑战</title>
+  <link rel="stylesheet" href="style.css?v=20260811-3">
+  <script src="game.js?v=20260811-3" defer></script>
 </head>
 
 <body>
-
-<div id="loading-overlay" class="loading-overlay">
-  <div class="loading-content">
-    <div style="font-size:18px;margin-bottom:12px;color:#22c55e;">正在加载 15×15 数织...</div>
-    <div class="loading-text">正在生成关卡...</div>
-    <div class="progress-container">
-      <div id="progress-bar" class="progress-bar"></div>
-    </div>
-    <div id="progress-text" style="margin-top:8px;font-size:14px;color:#aaa;">0%</div>
-  </div>
-</div>
-
-<div class="toolbar">
-  <div class="mode-toggle">
-    <button id="btnModeGrass" class="mode-btn active">草方块</button>
-    <button id="btnModeIce" class="mode-btn">冰方块</button>
-    <button id="btnModeNormal" class="mode-btn">普通模式</button>
-  </div>
-  <div class="draw-mode-switch">
-    <label class="switch">
-      <input type="checkbox" id="xMode" checked>
-      <span class="slider"></span>
-    </label>
-    <span>打X模式</span>
-  </div>
-  <input id="seedInput" type="text" placeholder="输入种子..." style="width: 160px; padding: 6px 10px; border-radius: 6px; border: 1px solid #555; background: #333; color: #eee; font-size: 13px;">
-  <button id="btnLoadSeed" class="secondary">加载种子</button>
-  <button id="btnGenerate" type="button">生成新关卡</button>
-  <button id="btnReset" class="secondary" type="button">清空棋盘</button>
-  <button id="btnRecords" class="secondary" type="button">生成记录</button>
-  <button id="btnExport" class="secondary" type="button">导出文本</button>
-  <button id="btnCopy" class="secondary" type="button">复制种子</button>
-  <span id="status" class="status">准备生成…</span>
-</div>
-
-<div class="game-wrap">
-  <div class="game">
-    <div class="top-area">
-      <div id="colHints" class="col-hints"></div>
-    </div>
-
-    <div class="main">
-      <div id="rowHints" class="row-hints"></div>
-      <div id="board" class="board"></div>
+  <div id="loading-overlay" class="loading-overlay" aria-live="polite">
+    <div class="loading-content">
+      <span class="loading-mark" aria-hidden="true"></span>
+      <strong>正在生成关卡</strong>
+      <span>请稍候</span>
     </div>
   </div>
-</div>
 
-<div class="export-box">
-  <div style="margin-bottom:6px;font-size:13px;color:#aaa;">
-    点击下方按钮可导出当前关卡的纯文本解决方案（每行15个0/1，用空格分隔）
-  </div>
-  <textarea id="exportText" readonly></textarea>
-</div>
+  <main class="page-shell">
+    <header class="game-header">
+      <div>
+        <p class="eyebrow">NONOGRAM / 15 × 15</p>
+        <h1>方块推理</h1>
+        <p class="subtitle">用行列线索还原隐藏图案</p>
+      </div>
+      <div class="header-note" aria-label="操作提示">
+        <span class="legend-chip legend-fill">■</span>
+        <span>填充</span>
+        <span class="legend-chip legend-cross">×</span>
+        <span>排除</span>
+      </div>
+    </header>
 
+    <section class="control-panel" aria-label="关卡控制">
+      <div class="control-row primary-controls">
+        <fieldset class="mode-toggle">
+          <legend>模式</legend>
+          <button id="btnModeGrass" class="mode-btn active" type="button">草方块</button>
+          <button id="btnModeIce" class="mode-btn" type="button">冰方块</button>
+          <button id="btnModeNormal" class="mode-btn" type="button">普通模式</button>
+        </fieldset>
 
+        <label class="toggle-control" for="xMode">
+          <input id="xMode" type="checkbox" checked>
+          <span class="toggle-track" aria-hidden="true"><span></span></span>
+          <span>长按标记 ×</span>
+        </label>
+      </div>
+
+      <div class="control-row secondary-controls">
+        <div class="seed-control">
+          <label for="seedInput">关卡码</label>
+          <input id="seedInput" type="text" placeholder="模式:种子，如 0:12345" autocomplete="off">
+          <button id="btnLoadSeed" class="button button-muted" type="button">加载</button>
+        </div>
+        <div class="action-group">
+          <button id="btnGenerate" class="button button-primary" type="button">生成新关卡</button>
+          <button id="btnReset" class="button button-muted" type="button">清空棋盘</button>
+          <button id="btnRecords" class="button button-muted" type="button">生成记录</button>
+          <button id="btnCopy" class="button button-muted" type="button">复制关卡码</button>
+        </div>
+      </div>
+
+      <p id="status" class="status" role="status">准备生成关卡</p>
+    </section>
+
+    <section class="game-layout" aria-label="数织棋盘">
+      <div class="game-stage">
+        <div class="game-wrap">
+          <div class="game">
+            <div class="top-area">
+              <div id="colHints" class="col-hints" aria-label="列提示"></div>
+            </div>
+            <div class="main">
+              <div id="rowHints" class="row-hints" aria-label="行提示"></div>
+              <div id="board" class="board" aria-label="数织棋盘"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="help-panel">
+        <div class="help-heading">
+          <span class="section-kicker">PLAY GUIDE</span>
+          <h2>本局提示</h2>
+        </div>
+        <ul>
+          <li><span class="help-icon fill-icon">■</span><span>点击格子填充方块</span></li>
+          <li><span class="help-icon cross-icon">×</span><span>右键或长按标记空格</span></li>
+          <li><span class="help-icon terrain-icon">◆</span><span>特殊方块需先解锁</span></li>
+        </ul>
+        <div class="help-footer">行提示从左到右，列提示从上到下</div>
+      </aside>
+    </section>
+  </main>
 </body>
 
 </html>

@@ -2,8 +2,10 @@
 // 常量
 // ======================
 const SIZE = 15;
-const MIN_BLOCKS = 100;
-const MAX_BLOCKS = 230;
+const MODE_GRASS = 0;
+const MODE_ICE = 1;
+const MODE_NORMAL = 2;
+const MODE_LABELS = ["草方块", "冰方块", "普通模式"];
 
 let drawMode = true;
 let isGenerating = false;
@@ -31,7 +33,8 @@ let errorFlags = [];
 let rows = [];
 let cols = [];
 let cells = [];
-let currentMode = 0; // 0=grass, 1=ice
+let currentMode = MODE_GRASS;
+let currentSeed = 0;
 let generationHistory = [];
 
 // ======================
@@ -46,12 +49,13 @@ const LONG_PRESS_MS = 420;
 // ======================
 function cellKey(r, c) { return `${r},${c}`; }
 
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function getModeLabel(mode = currentMode) {
+  return MODE_LABELS[mode] || MODE_LABELS[MODE_NORMAL];
+}
+
+function seededRandom(seed) {
+  const value = Math.sin(seed) * 10000;
+  return value - Math.floor(value);
 }
 
 function getHintBlocks(arr) {
@@ -163,37 +167,29 @@ function createTerrain() {
   hasGrassCol = Array(SIZE).fill(false);
 
   const mode = currentMode;
-  if (mode === 0) { // 草方块
-    let placed = false;
-    while (!placed) {
-      const sr = Math.floor(Math.random() * (SIZE - 4));
-      const sc = Math.floor(Math.random() * (SIZE - 4));
-      let canPlace = true;
-      for (let r = sr; r < sr + 5; r++) {
-        for (let c = sc; c < sc + 5; c++) {
-          if (terrain[r][c] !== 0) canPlace = false;
-        }
-      }
-      if (canPlace) {
-        for (let r = sr; r < sr + 5; r++) {
-          for (let c = sc; c < sc + 5; c++) {
-            terrain[r][c] = 1;
-            hasGrassRow[r] = true;
-            hasGrassCol[c] = true;
-          }
-        }
-        placed = true;
+  if (mode === MODE_GRASS) {
+    const sr = Math.floor(seededRandom(currentSeed) * (SIZE - 4));
+    const sc = Math.floor(seededRandom(currentSeed + 1) * (SIZE - 4));
+    for (let r = sr; r < sr + 5; r++) {
+      for (let c = sc; c < sc + 5; c++) {
+        terrain[r][c] = 1;
+        hasGrassRow[r] = true;
+        hasGrassCol[c] = true;
       }
     }
-  } else if (mode === 1) { // 冰方块
+  } else if (mode === MODE_ICE) {
     const positions = [];
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) positions.push([r, c]);
-    shuffle(positions);
+    let offset = 2;
+    for (let i = positions.length - 1; i > 0; i--) {
+      const j = Math.floor(seededRandom(currentSeed + offset++) * (i + 1));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
     for (let i = 0; i < 5; i++) {
       const [r, c] = positions[i];
       terrain[r][c] = 2;
     }
-  } // normal mode (mode === 2): all empty, no special terrain
+  }
 
   // initial progress always 0 for locked start
   for (let r = 0; r < SIZE; r++) {
@@ -247,7 +243,6 @@ function updateTerrainUnlocks() {
       if (count >= effectiveNeed) {
         unlockProgress[r][c] = effectiveNeed;
         if (terrain[r][c] !== 0) {
-          const wasGrass = terrain[r][c] === 1;
           terrain[r][c] = 0;
           changed = true;
         }
@@ -266,6 +261,7 @@ function updateTerrainUnlocks() {
 
 function paintCell(r, c, mode, erase) {
   if (r < 0 || c < 0 || r >= SIZE || c >= SIZE) return false;
+  if (terrain[r][c] !== 0 && !isUnlocked(r, c)) return false;
   if (errorFlags[r][c] && !erase) return false;
   if (mode === "fill") {
     if (erase) {
@@ -398,7 +394,7 @@ function onBoardPointerDown(e) {
   if (e.pointerType !== "touch") {
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
-    const mode = e.button === 2 ? "cross" : drawMode;
+    const mode = e.button === 2 ? "cross" : (drawMode ? "fill" : "cross");
     startDragSession(r, c, mode, e.pointerId);
     try { boardEl.setPointerCapture(e.pointerId); } catch (_) {}
     return;
@@ -508,21 +504,17 @@ function createBoard() {
       var cell = document.createElement("div");
       cell.dataset.r = String(r);
       cell.dataset.c = String(c);
-      cell.onclick = () => {
-        if (state[r][c] === 1) state[r][c] = 0;
-        else if (solution[r][c] === 1) state[r][c] = 1;
-        else { state[r][c] = 2; errorFlags[r][c] = "cross"; statusEl.classList.remove("win"); statusEl.textContent = "点错了：该格应为空，已标红显示 ×"; }
-        renderCell(cell, r, c);
-        afterPlayerMove();
-      };
-      cell.oncontextmenu = (e) => {
+      cell.setAttribute("role", "button");
+      cell.setAttribute("tabindex", "0");
+      cell.setAttribute("aria-label", `第 ${r + 1} 行，第 ${c + 1} 列`);
+      cell.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (state[r][c] === 2) state[r][c] = 0;
-        else if (solution[r][c] === 0) state[r][c] = 2;
-        else { state[r][c] = 1; errorFlags[r][c] = "fill"; statusEl.classList.remove("win"); statusEl.textContent = "点错了：该格应填充，已标红显示"; }
+        if (paintCell(r, c, "fill", resolveErase(r, c, "fill"))) {
+          afterPlayerMove();
+        }
         renderCell(cell, r, c);
-        afterPlayerMove();
-      };
+      });
       boardEl.appendChild(cell);
       cells[r][c] = cell;
     }
@@ -684,7 +676,6 @@ function resetBoard() {
 }
 
 function saveGeneration(filled, target) {
-  const modeNames = ['草方块', '冰方块', '普通模式'];
   const record = {
     date: new Date().toLocaleDateString('zh-CN'),
     mode: currentMode,
@@ -702,8 +693,7 @@ function showRecords() {
   }
   let text = '生成记录：\n\n';
   generationHistory.forEach((r, i) => {
-    const mode = r.mode === 0 ? '草方块' : '冰方块';
-    text += `${i + 1}. ${mode} - ${r.date} - 填充: ${r.filled}/${r.target}\n`;
+    text += `${i + 1}. ${getModeLabel(r.mode)} - ${r.date} - 填充: ${r.filled}/${r.target}\n`;
   });
   alert(text);
 }
@@ -774,9 +764,7 @@ function getTerrainSVG(type, unlocked, progress) {
 document.addEventListener("DOMContentLoaded", () => {
   const seedInput = document.getElementById("seedInput");
   const btnLoadSeed = document.getElementById("btnLoadSeed");
-  const btnExport = document.getElementById("btnExport");
   const copyBtn = document.getElementById("btnCopy");
-  const exportTextEl = document.getElementById("exportText");
   statusEl = document.getElementById("status");
   boardEl = document.getElementById("board");
   rowHintsEl = document.getElementById("rowHints");
@@ -792,17 +780,20 @@ function loadLevelBySeed(code) {
     statusEl = document.getElementById("status");
   }
   if (!statusEl) return;
-  const parts = code.split(':');
-  if (parts.length < 2) {
+  const parts = code.split(":");
+  const modeValue = parts.length > 1 ? Number(parts[0]) : currentMode;
+  const seedValue = parts.length > 1 ? Number(parts[1]) : Number(parts[0]);
+  if (!Number.isInteger(modeValue) || modeValue < MODE_GRASS || modeValue > MODE_NORMAL || !Number.isFinite(seedValue)) {
     statusEl.textContent = "格式错误";
     return;
   }
 
-  const mode = parseInt(parts[0]) || 0;
-  const seed = parseInt(parts[1]) || Date.now();
-  const params = parts[2] || '';
+  const mode = modeValue;
+  const seed = Math.abs(Math.floor(seedValue));
 
-  statusEl.textContent = `正在加载模式${mode} (Seed=${seed})...`;
+  setMode(mode, false);
+  currentSeed = seed;
+  statusEl.textContent = `正在加载${getModeLabel(mode)}...`;
 
   const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
 
@@ -818,8 +809,7 @@ function loadLevelBySeed(code) {
     }
   }
   refreshHints();
-  exportLevelText();
-  statusEl.textContent = `已加载模式${mode} (Seed=${seed}) 填充: ${filled}`;
+  statusEl.textContent = `已加载${getModeLabel(mode)} · ${filled} 个方块`;
 }
 
 // ==================== 新版关卡生成系统 ====================
@@ -837,107 +827,43 @@ function generateSolutionWithSeed(mode, seed) {
   let filled = 0;
   let target = 0;
 
-  switch (mode) {
-    case 0: // 普通模式 - 高密度布局，保证每个种子生成的地图有效方块 >= target (165+)
-      target = 165;
-      grid = [];
-      filled = 0;
-      for (let r = 0; r < SIZE; r++) {
-        grid[r] = [];
-        for (let c = 0; c < SIZE; c++) {
-          const val = Math.floor(rng(seed + r * 100 + c) * 5);
-          grid[r][c] = val < 4 ? 1 : 0;
-          if (grid[r][c] === 1) filled++;
-        }
-      }
-      if (filled < target) {
-        let zeros = [];
-        for (let r = 0; r < SIZE; r++) {
-          for (let c = 0; c < SIZE; c++) {
-            if (grid[r][c] === 0) zeros.push([r, c]);
-          }
-        }
-        zeros.sort((a, b) => (a[0] * SIZE + a[1]) - (b[0] * SIZE + b[1]));
-        for (let i = 0; i < zeros.length && filled < target; i++) {
-          const [r, c] = zeros[i];
+  target = 165;
+  grid = [];
+  filled = 0;
+  for (let r = 0; r < SIZE; r++) {
+    grid[r] = [];
+    for (let c = 0; c < SIZE; c++) {
+      const value = Math.floor(rng(seed + r * 100 + c) * 5);
+      grid[r][c] = value < 4 ? 1 : 0;
+      if (grid[r][c] === 1) filled++;
+    }
+  }
+  if (filled < target) {
+    for (let r = 0; r < SIZE && filled < target; r++) {
+      for (let c = 0; c < SIZE && filled < target; c++) {
+        if (grid[r][c] === 0) {
           grid[r][c] = 1;
           filled++;
         }
       }
-      break;
-
-    case 1: // 冰块模式 - 5个随机离散冰块
-      const positions = [];
-      for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
-          if (r < 2 || r > SIZE - 3 || c < 2 || c > SIZE - 3) continue; // 避免边缘
-          positions.push([r, c]);
-        }
-      }
-      const shuffled = positions.sort(() => rng(seed) - 0.5);
-      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-      for (let i = 0; i < 5; i++) {
-        const [r, c] = shuffled[i];
-        grid[r][c] = 1;
-        filled++;
-      }
-      target = 5;
-      break;
-
-    case 2: // 草地模式 - 单个5×5连续区域
-      const sr = Math.floor(rng(seed) * (SIZE - 4));
-      const sc = Math.floor(rng(seed + 1) * (SIZE - 4));
-      grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-      for (let r = sr; r < sr + 5; r++) {
-        for (let c = sc; c < sc + 5; c++) {
-          grid[r][c] = 1;
-        }
-      }
-      filled = 25;
-      target = 25;
-      break;
-
-    default:
-      // fallback 普通模式 - 高密度布局，保证每个种子生成的地图有效方块 >= target (165+)
-      target = 165;
-      grid = [];
-      filled = 0;
-      for (let r = 0; r < SIZE; r++) {
-        grid[r] = [];
-        for (let c = 0; c < SIZE; c++) {
-          const val = Math.floor(rng(seed + r * 100 + c) * 5);
-          grid[r][c] = val < 4 ? 1 : 0;
-          if (grid[r][c] === 1) filled++;
-        }
-      }
-      if (filled < target) {
-        let zeros = [];
-        for (let r = 0; r < SIZE; r++) {
-          for (let c = 0; c < SIZE; c++) {
-            if (grid[r][c] === 0) zeros.push([r, c]);
-          }
-        }
-        zeros.sort((a, b) => (a[0] * SIZE + a[1]) - (b[0] * SIZE + b[1]));
-        for (let i = 0; i < zeros.length && filled < target; i++) {
-          const [r, c] = zeros[i];
-          grid[r][c] = 1;
-          filled++;
-        }
-      }
-      break;
+    }
   }
 
   return { grid, filled, target };
 }
 
-btnLoadSeed.addEventListener("click", () => {
-  loadLevelBySeed(seedInput.value.trim());
-});
+  if (btnLoadSeed && seedInput) {
+    btnLoadSeed.addEventListener("click", () => {
+      loadLevelBySeed(seedInput.value.trim());
+    });
+  }
 
 
-seedInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") loadLevelBySeed(seedInput.value.trim());
-});
+  if (seedInput) {
+    seedInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") loadLevelBySeed(seedInput.value.trim());
+    });
+  }
 
   if (copyBtn) {
     copyBtn.addEventListener("click", copyToClipboard);
@@ -969,11 +895,6 @@ seedInput.addEventListener("keypress", (e) => {
     btnGenerate.addEventListener("click", () => {
       generateFromSeed();
     });
-    seedInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        generateFromSeed();
-      }
-    });
   }
 
   function newLevel() {
@@ -983,13 +904,13 @@ seedInput.addEventListener("keypress", (e) => {
     }
     statusEl.textContent = "正在生成关卡...";
 
-    // 随机选择模式 (0=普通, 1=冰块, 2=草地)
-    const mode = Math.floor(Math.random() * 3);
+    const mode = currentMode;
     const seed = Math.floor(Math.random() * 99999999) + 10000000; // 8位种子
 
     const { grid, filled, target } = generateSolutionWithSeed(mode, seed);
 
     solution = grid;
+    currentSeed = seed;
     if (!solution) solution = [];
     rows = solution.map(row => getHintBlocks(row));
     cols = Array.from({length: SIZE}, (_, c) => getHintBlocks(solution.map(row => row[c])));
@@ -1007,17 +928,8 @@ seedInput.addEventListener("keypress", (e) => {
         }
       }
     }
-    exportLevelText();
-    statusEl.textContent = `关卡生成完成！填充: ${filled} (模式${mode}, Seed=${seed})`;
-  }
-
-  function exportLevelText() {
-    if (!solution || solution.length === 0) return;
-    let text = '';
-    for (let row of solution) {
-      text += row.join(' ') + '\n';
-    }
-    exportTextEl.value = text.trim();
+    saveGeneration(filled, target);
+    statusEl.textContent = `关卡生成完成 · ${getModeLabel(mode)} · ${filled} 个方块`;
   }
 
   function showLoading() {
@@ -1052,23 +964,24 @@ seedInput.addEventListener("keypress", (e) => {
   const btnModeIce = document.getElementById("btnModeIce");
   const btnModeNormal = document.getElementById("btnModeNormal");
 
-  function setMode(mode) {
+  function setMode(mode, shouldRegenerate = true) {
+    if (mode < MODE_GRASS || mode > MODE_NORMAL) return;
     currentMode = mode;
-    if (btnModeGrass) btnModeGrass.classList.toggle('active', mode === 0);
-    if (btnModeIce) btnModeIce.classList.toggle('active', mode === 1);
-    if (btnModeNormal) btnModeNormal.classList.toggle('active', mode === 2);
+    if (btnModeGrass) btnModeGrass.classList.toggle("active", mode === MODE_GRASS);
+    if (btnModeIce) btnModeIce.classList.toggle("active", mode === MODE_ICE);
+    if (btnModeNormal) btnModeNormal.classList.toggle("active", mode === MODE_NORMAL);
     localStorage.setItem('gameMode', mode);
+    if (shouldRegenerate && solution.length) newLevel();
   }
 
   // 恢复持久化模式（不同tab保持相同选择）
-  const savedMode = parseInt(localStorage.getItem('gameMode') || '0');
+  const savedMode = Number(localStorage.getItem("gameMode"));
   if (btnModeGrass && btnModeIce && btnModeNormal) {
-    btnModeGrass.addEventListener("click", () => setMode(0));
-    btnModeIce.addEventListener("click", () => setMode(1));
-    btnModeNormal.addEventListener("click", () => setMode(2));
+    btnModeGrass.addEventListener("click", () => setMode(MODE_GRASS));
+    btnModeIce.addEventListener("click", () => setMode(MODE_ICE));
+    btnModeNormal.addEventListener("click", () => setMode(MODE_NORMAL));
 
-    // 设置初始 active 状态
-    setMode(savedMode);
+    setMode(Number.isInteger(savedMode) && savedMode >= MODE_GRASS && savedMode <= MODE_NORMAL ? savedMode : MODE_GRASS, false);
   }
 
   // 手机长按拖拽模式切换（打X开关）
@@ -1090,13 +1003,15 @@ seedInput.addEventListener("keypress", (e) => {
   }, 80); // 极短延迟
 
   function copyToClipboard() {
-    if (!exportTextEl) exportTextEl = document.getElementById("exportText");
-    const text = exportTextEl ? exportTextEl.value : '';
-    if (!text) return;
+    if (!currentSeed) return;
+    const text = `${currentMode}:${currentSeed}`;
     if (!statusEl) statusEl = document.getElementById("status");
-    navigator.clipboard.writeText(text).then(() => {
+    const copy = navigator.clipboard && navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error("clipboard unavailable"));
+    copy.then(() => {
       const original = statusEl ? statusEl.textContent : '';
-      statusEl.textContent = "已复制到剪贴板 ✓";
+      statusEl.textContent = `关卡码已复制：${text}`;
       setTimeout(() => { 
         if (statusEl) statusEl.textContent = original; 
       }, 2000);
