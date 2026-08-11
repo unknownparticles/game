@@ -258,27 +258,33 @@ function isColFullySolved(c) {
 }
 
 function autoCrossRow(r) {
-  if (!isRowFullySolved(r)) return;
+  if (!isRowFullySolved(r)) return false;
+  let changed = false;
   for (let c = 0; c < SIZE; c++) {
     if (solution[r][c] === 0 && state[r][c] === 0) {
       state[r][c] = 2;
       errorFlags[r][c] = null;
+      changed = true;
       const cellEl = cells[r][c];
       if (cellEl) renderCell(cellEl, r, c);
     }
   }
+  return changed;
 }
 
 function autoCrossCol(c) {
-  if (!isColFullySolved(c)) return;
+  if (!isColFullySolved(c)) return false;
+  let changed = false;
   for (let r = 0; r < SIZE; r++) {
     if (solution[r][c] === 0 && state[r][c] === 0) {
       state[r][c] = 2;
       errorFlags[r][c] = null;
+      changed = true;
       const cellEl = cells[r][c];
       if (cellEl) renderCell(cellEl, r, c);
     }
   }
+  return changed;
 }
 
 function updateHintStyles() {
@@ -619,24 +625,30 @@ function onBoardPointerUp(e) {
 // ======================
 // 游戏核心函数
 // ======================
-function afterPlayerMove() {
-  const terrainChanged = updateTerrainUnlocks();
-  if (terrainChanged) {
-    for (let r = 0; r < SIZE; r++) {
-      for (let c = 0; c < SIZE; c++) {
-        renderCell(cells[r][c], r, c);
-      }
+function renderAllCells() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      renderCell(cells[r][c], r, c);
     }
   }
-  checkWin();
-  // Auto mark remaining unrevealed cells with 'x' if all filled cells revealed in row/col
-  // and change hint number prompt when a continuous block is fully revealed
-  for (let r = 0; r < SIZE; r++) {
-    autoCrossRow(r);
+}
+
+function afterPlayerMove() {
+  // 自动 X 可能解锁地形，地形移除后又可能触发新的自动 X，因此处理到稳定状态。
+  for (let pass = 0; pass < SIZE * SIZE; pass++) {
+    const terrainChanged = updateTerrainUnlocks();
+    if (terrainChanged) renderAllCells();
+
+    let autoCrossChanged = false;
+    for (let r = 0; r < SIZE; r++) {
+      autoCrossChanged = autoCrossRow(r) || autoCrossChanged;
+    }
+    for (let c = 0; c < SIZE; c++) {
+      autoCrossChanged = autoCrossCol(c) || autoCrossChanged;
+    }
+    if (!terrainChanged && !autoCrossChanged) break;
   }
-  for (let c = 0; c < SIZE; c++) {
-    autoCrossCol(c);
-  }
+
   checkWin();
   updateHintStyles();
 }
