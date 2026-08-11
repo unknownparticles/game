@@ -872,6 +872,7 @@ h1 {
 
   .game-layout {
     display: flex;
+    align-items: stretch;
     flex: 1 1 0;
     min-height: 0;
     width: 100%;
