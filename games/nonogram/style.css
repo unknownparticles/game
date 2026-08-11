@@ -938,6 +938,38 @@ h1 {
   }
 }
 
+@media (min-width: 361px) and (max-width: 680px) {
+  .tool-row {
+    position: fixed;
+    z-index: 5;
+    right: 6px;
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: 6px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  .game-layout {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .game-stage {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .game-wrap {
+    display: flex;
+    height: 100%;
+    align-items: flex-start;
+  }
+}
+
 @media (max-width: 360px) {
   :root {
     --cell: min(16px, calc((100vw - 96px) / 15));
