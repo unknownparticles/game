@@ -183,6 +183,7 @@ h1 {
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .tool-button:hover,
@@ -726,6 +727,14 @@ h1 {
 }
 
 @media (max-width: 680px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+  }
+
   :root {
     --cell: 22px;
     --hint-w: 88px;
@@ -733,6 +742,8 @@ h1 {
   }
 
   .page-shell {
+    height: 100dvh;
+    overflow: hidden;
     padding: 18px 10px 24px;
   }
 
@@ -776,18 +787,32 @@ h1 {
     gap: 10px;
   }
 
+  .seed-control,
+  #btnRecords,
+  #btnCopy {
+    display: none;
+  }
+
+  .secondary-controls {
+    padding-top: 10px;
+  }
+
   .tool-row {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 9px;
+    align-items: center;
+    gap: 8px;
   }
 
   .tool-heading {
-    min-width: 0;
+    min-width: 56px;
+  }
+
+  .tool-heading span {
+    display: none;
   }
 
   .tool-actions {
-    width: 100%;
+    flex: 1;
+    gap: 4px;
   }
 
   .tool-button {
@@ -824,6 +849,10 @@ h1 {
   }
 
   .game-wrap {
+    touch-action: pan-x;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
     padding: 14px 8px;
   }
 
@@ -848,40 +877,7 @@ h1 {
   }
 
   .help-panel {
-    display: block;
-    padding: 15px;
-  }
-
-  .help-heading {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-
-  .help-heading h2 {
-    font-size: 17px;
-  }
-
-  .help-panel ul {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: 14px;
-  }
-
-  .help-panel li {
-    display: grid;
-    justify-items: center;
-    gap: 5px;
-    text-align: center;
-    font-size: 11px;
-  }
-
-  .help-footer {
-    max-width: none;
-    margin-top: 14px;
-    padding-top: 10px;
-    border-top: 1px solid var(--line);
+    display: none;
   }
 }
 
@@ -900,6 +896,11 @@ h1 {
   :root {
     --cell: 16px;
     --hint-w: 54px;
+  }
+
+  .page-shell {
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 
   .game-wrap {
