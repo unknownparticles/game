@@ -747,8 +747,6 @@ h1 {
   }
 
   :root {
-    --cell: 22px;
-    --hint-w: 88px;
     --gap: 1px;
   }
 
@@ -885,7 +883,8 @@ h1 {
   .game-wrap {
     width: 100%;
     height: auto;
-    overflow: hidden;
+    overflow: auto;
+    overscroll-behavior: contain;
     padding: 8px 4px;
   }
 
@@ -900,9 +899,17 @@ h1 {
   .game-stage {
     display: block;
     width: 100%;
+    container-type: inline-size;
   }
 
-.col-tip {
+  .game {
+    --hint-w: clamp(54px, 18vw, 78px);
+    --cell: clamp(14px, calc((100vw - var(--hint-w) - 46px) / 15), 22px);
+    --hint-w: clamp(54px, 18cqw, 78px);
+    --cell: clamp(14px, calc((100cqw - var(--hint-w) - 26px) / 15), 22px);
+  }
+
+  .col-tip {
     height: 76px;
   }
 
@@ -927,18 +934,11 @@ h1 {
   }
 }
 
-@media (max-width: 400px) {
-  :root {
-    --cell: 17px;
-    --hint-w: 58px;
-  }
-
-  .mode-btn {
-    font-size: 11px;
-  }
-}
-
 @media (min-width: 361px) and (max-width: 680px) {
+  .page-shell {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+
   .tool-row {
     position: fixed;
     z-index: 5;
@@ -971,11 +971,6 @@ h1 {
 }
 
 @media (max-width: 360px) {
-  :root {
-    --cell: min(16px, calc((100vw - 96px) / 15));
-    --hint-w: 54px;
-  }
-
   .page-shell {
     padding: 6px;
   }
