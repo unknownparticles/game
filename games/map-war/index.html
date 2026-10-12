@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#11191c" />
+  <title>疆域争锋 · 小游戏中心</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="war-game">
+    <header class="game-bar">
+      <button class="icon-btn" type="button" data-back-home aria-label="返回首页" title="返回首页">←</button>
+      <div class="game-title">
+        <strong>疆域争锋</strong>
+        <span id="battleState">战斗进行中</span>
+      </div>
+      <label class="level-picker">
+        <span>战役</span>
+        <select id="levelSelect" aria-label="选择战役"></select>
+      </label>
+      <div class="bar-actions">
+        <button class="icon-btn" id="soundBtn" type="button" aria-label="关闭音效" title="关闭音效">♪</button>
+        <button class="icon-btn" id="pauseBtn" type="button" aria-label="暂停" title="暂停">Ⅱ</button>
+        <button class="icon-btn" id="restartBtn" type="button" aria-label="重新开始" title="重新开始">↻</button>
+      </div>
+    </header>
+
+    <section class="battle-stage" aria-label="疆域战场">
+      <canvas id="battleCanvas" aria-label="疆域争锋游戏地图"></canvas>
+
+      <div class="score-strip" aria-live="polite">
+        <div class="faction-score player-score">
+          <span class="color-dot"></span>
+          <span>我方</span>
+          <strong id="playerScore">0</strong>
+        </div>
+        <div class="faction-score red-score" id="redScoreBox">
+          <span class="color-dot"></span>
+          <span>赤焰</span>
+          <strong id="redScore">0</strong>
+        </div>
+        <div class="faction-score gold-score" id="goldScoreBox">
+          <span class="color-dot"></span>
+          <span>金盟</span>
+          <strong id="goldScore">0</strong>
+        </div>
+      </div>
+
+      <div class="level-mark">
+        <span id="levelNumber">01</span>
+        <strong id="levelName">海峡初战</strong>
+      </div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+
+    <footer class="command-bar">
+      <div class="command-group">
+        <span class="command-label">派兵比例</span>
+        <div class="segmented" id="ratioControl" aria-label="派兵比例">
+          <button type="button" data-ratio="0.5">50%</button>
+          <button type="button" data-ratio="0.75" class="active">75%</button>
+          <button type="button" data-ratio="1">全部</button>
+        </div>
+      </div>
+      <div class="command-group compact">
+        <span class="command-label">速度</span>
+        <button class="speed-btn" id="speedBtn" type="button" aria-label="切换战斗速度">1×</button>
+      </div>
+    </footer>
+
+    <div class="result-layer" id="resultLayer" hidden>
+      <section class="result-dialog" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+        <div class="result-emblem" id="resultEmblem">◆</div>
+        <p class="result-kicker" id="resultKicker">战役完成</p>
+        <h1 id="resultTitle">全境统一</h1>
+        <div class="result-stats">
+          <div><span>用时</span><strong id="resultTime">00:00</strong></div>
+          <div><span>占领</span><strong id="resultLands">0</strong></div>
+          <div><span>出征</span><strong id="resultMoves">0</strong></div>
+        </div>
+        <div class="result-actions">
+          <button class="secondary-action" id="retryBtn" type="button">再次挑战</button>
+          <button class="primary-action" id="nextBtn" type="button">下一战役</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../../js/common.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
