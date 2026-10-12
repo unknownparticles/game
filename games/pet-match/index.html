@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#25b8db" />
+  <title>萌宠排排排 · 小游戏中心</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="game" id="game">
+    <div class="water-decor" aria-hidden="true">
+      <span class="bubble bubble-a"></span>
+      <span class="bubble bubble-b"></span>
+      <span class="bubble bubble-c"></span>
+      <span class="lily lily-a">🍃</span>
+      <span class="lily lily-b">🍃</span>
+    </div>
+
+    <header class="game-header">
+      <button class="round-btn" type="button" data-back-home aria-label="返回游戏中心" title="返回游戏中心">‹</button>
+      <h1>萌宠排排排</h1>
+      <button class="round-btn" id="pauseBtn" type="button" aria-label="暂停游戏" title="暂停游戏">Ⅱ</button>
+    </header>
+
+    <section class="stats" aria-label="游戏状态">
+      <div><span>剩余</span><strong id="remaining">48</strong></div>
+      <div><span>得分</span><strong id="score">0</strong></div>
+      <div><span>倒计时</span><strong class="timer" id="timer">05:00</strong></div>
+    </section>
+
+    <section class="board" id="board" aria-label="8 列萌宠棋盘"></section>
+    <p class="status" id="status" aria-live="polite">拖动明牌，把相同萌宠整理到一列</p>
+
+    <nav class="actions" aria-label="游戏操作">
+      <button class="action-btn" id="shuffleBtn" type="button" title="打乱棋盘">
+        <span class="action-icon" aria-hidden="true">🔀</span>
+        <span>打乱</span>
+      </button>
+      <button class="action-btn primary" id="restartBtn" type="button" title="重新开始">
+        <span class="action-icon" aria-hidden="true">↻</span>
+        <span>重开</span>
+      </button>
+      <button class="action-btn" id="undoBtn" type="button" title="撤销上一步">
+        <span class="action-icon" aria-hidden="true">↩</span>
+        <span>撤回</span>
+      </button>
+    </nav>
+  </main>
+
+  <div class="drag-ghost hidden" id="dragGhost" aria-hidden="true"></div>
+
+  <div class="overlay hidden" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
+    <div class="dialog">
+      <div class="dialog-pet" id="dialogPet" aria-hidden="true">🐶</div>
+      <h2 id="overlayTitle">暂停中</h2>
+      <p id="overlayText">休息一下，萌宠们会在这里等你。</p>
+      <div class="dialog-actions">
+        <button class="dialog-btn secondary" id="dialogHomeBtn" type="button">返回首页</button>
+        <button class="dialog-btn" id="dialogMainBtn" type="button">继续游戏</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../js/common.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
