@@ -46,6 +46,7 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: manipulation;
   background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sand-bg) 100%);
   color: var(--text-dark);
 }
@@ -119,9 +120,10 @@ html, body {
   flex-direction: column;
   width: 100%;
   max-width: 900px;
+  height: 100vh;
   height: 100dvh;
   margin: 0 auto;
-  padding: 8px 12px env(safe-area-inset-bottom, 8px);
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px calc(8px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
 }
 
@@ -1274,7 +1276,7 @@ html, body {
    ========================================================================== */
 @media (max-width: 680px) {
   .game-container {
-    padding: 4px 6px env(safe-area-inset-bottom, 4px);
+    padding: calc(4px + env(safe-area-inset-top, 0px)) 6px calc(4px + env(safe-area-inset-bottom, 0px));
   }
 
   :root {

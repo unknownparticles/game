@@ -8,14 +8,25 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+@supports (height: 100dvh) {
+  :root {
+    --cell-size: clamp(28px, min(calc((100vw - 42px) / 8), calc((100dvh - 260px - var(--safe-top) - var(--safe-bottom)) / 12)), 55px);
+  }
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
-html,
-body {
+html {
   min-height: 100%;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
 }
 
@@ -36,7 +47,8 @@ button {
   position: relative;
   isolation: isolate;
   width: min(100%, 720px);
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: calc(12px + var(--safe-top)) 10px calc(20px + var(--safe-bottom));
   overflow: hidden;
@@ -406,7 +418,7 @@ h1 {
   z-index: 60;
   inset: 0;
   display: grid;
-  padding: 20px;
+  padding: calc(20px + var(--safe-top)) 20px calc(20px + var(--safe-bottom));
   place-items: center;
   background: rgba(33, 75, 109, 0.58);
   backdrop-filter: blur(5px);
