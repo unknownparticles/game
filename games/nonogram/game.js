@@ -968,8 +968,9 @@ function bindBoardPointerEvents() {
       const dx = e.clientX - touchPending.startX;
       const dy = e.clientY - touchPending.startY;
       if (Math.hypot(dx, dy) >= 10) {
+        const pending = touchPending;
         clearTouchPending();
-        startDragSession(touchPending.startR, touchPending.startC, drawMode, e.pointerId);
+        startDragSession(pending.startR, pending.startC, drawMode, e.pointerId);
       }
     }
     if (!dragSession) return;
@@ -980,8 +981,9 @@ function bindBoardPointerEvents() {
 
   const onPointerUp = e => {
     if (e.pointerType === "touch" && touchPending && !dragSession && touchPending.pointerId === e.pointerId) {
+      const pending = touchPending;
       clearTouchPending();
-      startDragSession(touchPending.startR, touchPending.startC, drawMode, e.pointerId);
+      startDragSession(pending.startR, pending.startC, drawMode, e.pointerId);
     }
     endDragSession();
   };

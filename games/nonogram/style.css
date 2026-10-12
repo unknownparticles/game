@@ -438,7 +438,7 @@ html, body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(215, 246, 255, 0.92) 0%, rgba(94, 203, 255, 0.88) 60%, rgba(30, 145, 225, 0.82) 100%);
+  background: linear-gradient(135deg, #d7f6ff 0%, #5ecbff 60%, #1e91e1 100%);
   border: 1.2px solid #a3e8ff;
   border-radius: inherit;
   box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.8);
@@ -452,7 +452,7 @@ html, body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(120, 230, 60, 0.92) 0%, rgba(55, 175, 30, 0.9) 60%, rgba(20, 110, 15, 0.85) 100%);
+  background: linear-gradient(135deg, #78e63c 0%, #37af1e 60%, #146e0f 100%);
   border: 1.2px solid #8def47;
   border-radius: inherit;
   box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.6);
@@ -461,8 +461,8 @@ html, body {
 }
 
 @keyframes frostPulse {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.98; }
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
 }
 
 /* 棋盘主体网格 */
@@ -1277,7 +1277,8 @@ html, body {
   :root {
     --hint-col-h: 70px;
     --hint-row-w: 66px;
-    --cell: clamp(14px, calc((100vw - var(--hint-row-w) - 40px) / 15), 22px);
+    /* 预留容器、木框、棋盘边框、行提示与14条网格间距，防止横向溢出。 */
+    --cell: max(12px, min(22px, calc((100vw - 120px) / 15)));
     --gap: 1px;
   }
 
