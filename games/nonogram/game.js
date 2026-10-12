@@ -554,25 +554,15 @@ function renderAllCells() {
   }
 }
 
-function paintCell(r, c, mode, erase) {
+function paintCell(r, c, mode) {
   if (r < 0 || c < 0 || r >= SIZE || c >= SIZE) return false;
   if (isGameWon) return false;
   if (toolRevealed[r][c]) return false;
 
-  // 冰块或草方块未消除时不能直接操作
-  if (terrain[r][c] !== 0) return false;
-  if (errorFlags[r][c] && !erase) return false;
+  // 地形格和已有判断结果的格子均不可再次操作。
+  if (terrain[r][c] !== 0 || state[r][c] !== 0 || errorFlags[r][c]) return false;
 
   if (mode === "fill") {
-    if (erase) {
-      if (state[r][c] !== 1) return false;
-      state[r][c] = 0;
-      errorFlags[r][c] = null;
-      renderCell(cells[r][c], r, c);
-      return true;
-    }
-    if (state[r][c] === 1) return false;
-
     if (solution[r][c] === 1) {
       // 涂色正确
       state[r][c] = 1;
@@ -589,15 +579,6 @@ function paintCell(r, c, mode, erase) {
   }
 
   if (mode === "cross") {
-    if (erase) {
-      if (state[r][c] !== 2) return false;
-      state[r][c] = 0;
-      errorFlags[r][c] = null;
-      renderCell(cells[r][c], r, c);
-      return true;
-    }
-    if (state[r][c] === 2) return false;
-
     if (solution[r][c] === 0) {
       // 标记X正确
       state[r][c] = 2;
@@ -607,7 +588,7 @@ function paintCell(r, c, mode, erase) {
       // 点错：该格应涂色
       state[r][c] = 1;
       errorFlags[r][c] = "fill";
-      handleMistake("点错了：该格应填充，已标红提示");
+      handleMistake("X 标记错误：该格应填充，已标红保留 ×");
     }
     renderCell(cells[r][c], r, c);
     return true;
@@ -632,12 +613,6 @@ function updateLivesUI() {
   hearts.forEach((h, idx) => {
     h.classList.toggle("active", idx < lives);
   });
-}
-
-function resolveErase(r, c, mode) {
-  if (errorFlags[r][c]) return false;
-  if (mode === "fill") return state[r][c] === 1;
-  return state[r][c] === 2;
 }
 
 // ==========================================================================
@@ -895,8 +870,7 @@ function getCellFromPoint(clientX, clientY) {
 }
 
 function startDragSession(r, c, mode, pointerId) {
-  const erase = resolveErase(r, c, mode);
-  dragSession = { mode, erase, visited: new Set(), pointerId };
+  dragSession = { mode, visited: new Set(), pointerId };
   applyDragCell(r, c);
 }
 
@@ -905,7 +879,7 @@ function applyDragCell(r, c) {
   const key = `${r},${c}`;
   if (dragSession.visited.has(key)) return;
   dragSession.visited.add(key);
-  if (paintCell(r, c, dragSession.mode, dragSession.erase)) {
+  if (paintCell(r, c, dragSession.mode)) {
     afterPlayerMove();
   }
 }
@@ -1147,29 +1121,45 @@ const PATTERNS = [
   ]
 ];
 
-function generateSolution(mode, seed) {
-  // 如果种子命中预置趣味图案
-  const patternIdx = seed % (PATTERNS.length + 3);
-  if (patternIdx < PATTERNS.length) {
-    const raw = PATTERNS[patternIdx];
-    return raw.map(row => [...row]);
-  }
-
-  // 否则通过高品质伪随机生成合法的连通数织关卡
-  const grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+function ensurePopulatedLines(grid, seed) {
   for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      const val = seededRandom(seed + r * 37 + c * 19);
-      grid[r][c] = val > 0.44 ? 1 : 0;
+    if (!grid[r].some(v => v === 1)) {
+      const c = Math.floor(seededRandom(seed + r * 41 + 101) * SIZE);
+      grid[r][c] = 1;
     }
   }
 
-  // 保证每行每列至少有 1 个填色块
-  for (let i = 0; i < SIZE; i++) {
-    if (!grid[i].some(v => v === 1)) grid[i][Math.floor(seededRandom(seed + i) * SIZE)] = 1;
-    if (!grid.some(row => row[i] === 1)) grid[Math.floor(seededRandom(seed + i * 2) * SIZE)][i] = 1;
+  for (let c = 0; c < SIZE; c++) {
+    if (!grid.some(row => row[c] === 1)) {
+      const r = Math.floor(seededRandom(seed + c * 53 + 211) * SIZE);
+      grid[r][c] = 1;
+    }
   }
+
   return grid;
+}
+
+function generateSolution(mode, seed) {
+  let grid;
+  const stableSeed = Number.isFinite(seed) ? Math.trunc(seed) : 0;
+  const patternCount = PATTERNS.length + 3;
+  const patternIdx = ((stableSeed % patternCount) + patternCount) % patternCount;
+
+  if (patternIdx < PATTERNS.length) {
+    grid = PATTERNS[patternIdx].map(row => [...row]);
+  } else {
+    // 否则通过高品质伪随机生成合法的连通数织关卡
+    grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const val = seededRandom(stableSeed + r * 37 + c * 19);
+        grid[r][c] = val > 0.44 ? 1 : 0;
+      }
+    }
+  }
+
+  // 所有生成路径都必须满足每行、每列至少有一个填色格。
+  return ensurePopulatedLines(grid, stableSeed);
 }
 
 function startLevel(seed = null) {

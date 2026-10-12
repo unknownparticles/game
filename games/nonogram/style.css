@@ -515,7 +515,9 @@ html, body {
 }
 
 /* 排除标记 (X)：圆角柔和天蓝色 X，参考图 IMG_5201 */
-.cell.cross::after {
+.cell.cross::after,
+.cell.error-fill::after,
+.cell.error-cross::after {
   content: "";
   position: absolute;
   width: 58%;
@@ -540,6 +542,7 @@ html, body {
   75% { transform: translateX(3px); }
 }
 
+.cell.error-fill::after,
 .cell.error-cross::after {
   background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="4" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>');
 }
