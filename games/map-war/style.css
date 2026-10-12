@@ -99,8 +99,7 @@ select:focus-visible {
 }
 
 .icon-btn:active,
-.speed-btn:active,
-.segmented button:active {
+.speed-btn:active {
   transform: scale(0.96);
 }
 
@@ -299,30 +298,18 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-.segmented {
+.army-mode {
   display: grid;
-  grid-template-columns: repeat(3, 66px);
-  padding: 3px;
+  place-items: center;
+  min-width: 94px;
+  height: 38px;
+  padding: 0 14px;
   border: 1px solid #39484b;
-  border-radius: 7px;
-  background: #10191b;
-}
-
-.segmented button {
-  appearance: none;
-  min-height: 34px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: #93a39f;
-  cursor: pointer;
+  border-radius: 6px;
+  background: #20302f;
+  color: var(--player);
   font-size: 12px;
-  font-weight: 650;
-}
-
-.segmented button.active {
-  background: var(--player);
-  color: #092723;
+  font-weight: 750;
 }
 
 .speed-btn {
@@ -505,10 +492,6 @@ select:focus-visible {
   .command-label {
     display: none;
   }
-
-  .segmented {
-    grid-template-columns: repeat(3, minmax(58px, 1fr));
-  }
 }
 
 @media (max-width: 430px) {
@@ -518,10 +501,6 @@ select:focus-visible {
 
   .bar-actions .icon-btn {
     width: 36px;
-  }
-
-  .segmented {
-    grid-template-columns: repeat(3, 54px);
   }
 
   .result-dialog {
@@ -547,8 +526,8 @@ select:focus-visible {
     padding-bottom: calc(6px + var(--safe-bottom));
   }
 
-  .segmented button {
-    min-height: 30px;
+  .army-mode {
+    height: 34px;
   }
 
   .level-mark {

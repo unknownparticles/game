@@ -19,16 +19,16 @@
     {
       name: "海峡初战",
       ai: [RED],
-      growth: 1.08,
-      aiDelay: 2.15,
+      growth: 1.02,
+      aiDelay: 2.65,
       territories: [
-        ["A", 0.10, 0.28, PLAYER, 18, 0.95],
-        ["B", 0.29, 0.18, NEUTRAL, 8, 0.82],
-        ["C", 0.28, 0.67, NEUTRAL, 12, 1.02],
-        ["D", 0.49, 0.43, NEUTRAL, 14, 1.08],
-        ["E", 0.69, 0.20, RED, 17, 0.92],
-        ["F", 0.72, 0.70, RED, 14, 1.00],
-        ["G", 0.90, 0.43, NEUTRAL, 16, 0.92],
+        ["A", 0.10, 0.28, PLAYER, 24, 0.95],
+        ["B", 0.29, 0.18, NEUTRAL, 6, 0.82],
+        ["C", 0.28, 0.67, NEUTRAL, 8, 1.02],
+        ["D", 0.49, 0.43, NEUTRAL, 10, 1.08],
+        ["E", 0.69, 0.20, RED, 14, 0.92],
+        ["F", 0.72, 0.70, RED, 12, 1.00],
+        ["G", 0.90, 0.43, NEUTRAL, 10, 0.92],
       ],
       edges: [["A", "B"], ["A", "C"], ["B", "C"], ["B", "D"], ["C", "D"], ["D", "E"], ["D", "F"], ["E", "F"], ["E", "G"], ["F", "G"]],
     },
@@ -98,10 +98,10 @@
   let territoryById = new Map();
   let edges = [];
   let convoys = [];
+  let mapRegions = [];
   let selected = null;
   let hovered = null;
   let pointer = null;
-  let ratio = 0.75;
   let speed = 1;
   let paused = false;
   let ended = false;
@@ -115,6 +115,16 @@
   let audioContext = null;
   let soundOn = GameCenter.storage.get(SOUND_KEY, true) !== false;
   let oceanMarks = [];
+
+  const MAP_OUTLINE = [
+    [0.025, 0.29], [0.055, 0.16], [0.17, 0.10], [0.29, 0.12],
+    [0.38, 0.07], [0.49, 0.11], [0.58, 0.08], [0.68, 0.13],
+    [0.79, 0.10], [0.91, 0.17], [0.97, 0.30], [0.94, 0.42],
+    [0.98, 0.55], [0.93, 0.68], [0.95, 0.82], [0.84, 0.90],
+    [0.71, 0.86], [0.60, 0.92], [0.47, 0.87], [0.35, 0.92],
+    [0.25, 0.86], [0.13, 0.89], [0.04, 0.78], [0.07, 0.63],
+    [0.02, 0.50],
+  ];
 
   function seeded(seed) {
     let value = seed >>> 0;
@@ -136,10 +146,6 @@
 
   function makeTerritory(data, index) {
     const random = seeded((currentLevel + 1) * 907 + index * 131);
-    const coast = Array.from({ length: 13 }, (_, point) => ({
-      angle: (point / 13) * Math.PI * 2,
-      radius: 0.82 + random() * 0.36,
-    }));
     return {
       id: data[0],
       x: data[1],
@@ -149,8 +155,45 @@
       size: data[5],
       growth: random(),
       pulse: 0,
-      coast,
     };
+  }
+
+  function clipPolygon(polygon, normalX, normalY, limit) {
+    const result = [];
+    for (let index = 0; index < polygon.length; index += 1) {
+      const start = polygon[index];
+      const end = polygon[(index + 1) % polygon.length];
+      const startDistance = start.x * normalX + start.y * normalY - limit;
+      const endDistance = end.x * normalX + end.y * normalY - limit;
+      const startInside = startDistance <= 0;
+      const endInside = endDistance <= 0;
+
+      if (startInside) result.push(start);
+      if (startInside !== endInside) {
+        const progress = startDistance / (startDistance - endDistance);
+        result.push({
+          x: start.x + (end.x - start.x) * progress,
+          y: start.y + (end.y - start.y) * progress,
+        });
+      }
+    }
+    return result;
+  }
+
+  function buildMapRegions() {
+    const outline = MAP_OUTLINE.map(([x, y]) => ({ x: x * width, y: y * height }));
+    mapRegions = territories.map((territory) => {
+      const site = pointOf(territory);
+      const polygon = territories.reduce((region, other) => {
+        if (other === territory || !region.length) return region;
+        const otherSite = pointOf(other);
+        const normalX = otherSite.x - site.x;
+        const normalY = otherSite.y - site.y;
+        const limit = (otherSite.x ** 2 + otherSite.y ** 2 - site.x ** 2 - site.y ** 2) / 2;
+        return clipPolygon(region, normalX, normalY, limit);
+      }, outline);
+      return { territory, polygon };
+    });
   }
 
   function populateLevelSelect() {
@@ -173,6 +216,7 @@
     territories = level.territories.map(makeTerritory);
     territoryById = new Map(territories.map((territory) => [territory.id, territory]));
     edges = level.edges.map(([from, to]) => ({ from: territoryById.get(from), to: territoryById.get(to) }));
+    buildMapRegions();
     convoys = [];
     selected = null;
     hovered = null;
@@ -207,6 +251,7 @@
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildMapRegions();
   }
 
   function pointOf(territory) {
@@ -214,7 +259,7 @@
   }
 
   function radiusOf(territory) {
-    const base = Math.max(24, Math.min(48, Math.min(width, height) * 0.075));
+    const base = Math.max(22, Math.min(36, Math.min(width, height) * 0.06));
     return base * territory.size;
   }
 
@@ -232,23 +277,26 @@
     return result;
   }
 
+  function pointInPolygon(x, y, polygon) {
+    let inside = false;
+    for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current, current += 1) {
+      const a = polygon[current];
+      const b = polygon[previous];
+      const crosses = (a.y > y) !== (b.y > y)
+        && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x;
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  }
+
   function territoryAt(x, y) {
-    let found = null;
-    let nearest = Infinity;
-    territories.forEach((territory) => {
-      const point = pointOf(territory);
-      const distance = Math.hypot(x - point.x, y - point.y);
-      if (distance <= radiusOf(territory) * 1.15 && distance < nearest) {
-        found = territory;
-        nearest = distance;
-      }
-    });
-    return found;
+    const region = mapRegions.find(({ polygon }) => pointInPolygon(x, y, polygon));
+    return region ? region.territory : null;
   }
 
   function sendArmy(source, target, owner, sendRatio, isPlayerMove = false) {
     if (!source || !target || source.owner !== owner || source === target || !isConnected(source, target)) return false;
-    const amount = Math.floor(source.units * sendRatio);
+    const amount = isPlayerMove ? source.units : Math.floor(source.units * sendRatio);
     if (amount < 1) return false;
 
     source.units -= amount;
@@ -258,17 +306,7 @@
     const duration = Math.max(0.58, Math.min(1.35, distance / 340));
     const arcSign = (source.id.charCodeAt(0) + target.id.charCodeAt(0)) % 2 ? 1 : -1;
 
-    for (let index = 0; index < amount; index += 1) {
-      convoys.push({
-        source,
-        target,
-        owner,
-        elapsed: -index * 0.026,
-        duration,
-        arcSign,
-        lane: ((index % 5) - 2) * 2.2,
-      });
-    }
+    convoys.push({ source, target, owner, amount, elapsed: 0, duration, arcSign });
 
     if (isPlayerMove) {
       moves += 1;
@@ -280,19 +318,19 @@
   function resolveArrival(convoy) {
     const target = convoy.target;
     if (target.owner === convoy.owner) {
-      target.units = Math.min(999, target.units + 1);
+      target.units = Math.min(999, target.units + convoy.amount);
       return;
     }
 
-    if (target.units > 0) {
-      target.units -= 1;
+    if (convoy.amount <= target.units) {
+      target.units -= convoy.amount;
       target.pulse = 1;
       return;
     }
 
     const previousOwner = target.owner;
     target.owner = convoy.owner;
-    target.units = 1;
+    target.units = convoy.amount - target.units;
     target.pulse = 1.8;
     if (convoy.owner === PLAYER && previousOwner !== PLAYER) {
       captures += 1;
@@ -368,7 +406,7 @@
 
   function totalFor(owner) {
     const stationed = territories.reduce((sum, territory) => sum + (territory.owner === owner ? territory.units : 0), 0);
-    const moving = convoys.reduce((sum, convoy) => sum + (convoy.owner === owner ? 1 : 0), 0);
+    const moving = convoys.reduce((sum, convoy) => sum + (convoy.owner === owner ? convoy.amount : 0), 0);
     return stationed + moving;
   }
 
@@ -430,16 +468,11 @@
     updateScores();
   }
 
-  function traceCoast(territory) {
-    const center = pointOf(territory);
-    const radius = radiusOf(territory) * 1.32;
+  function tracePolygon(polygon) {
     ctx.beginPath();
-    territory.coast.forEach((part, index) => {
-      const horizontal = width < 560 ? 0.87 : 1.08;
-      const x = center.x + Math.cos(part.angle) * radius * part.radius * horizontal;
-      const y = center.y + Math.sin(part.angle) * radius * part.radius * 0.78;
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    polygon.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
     });
     ctx.closePath();
   }
@@ -458,6 +491,43 @@
       ctx.lineWidth = 1;
       ctx.stroke();
     });
+  }
+
+  function drawMap() {
+    if (!mapRegions.length) return;
+
+    const outline = MAP_OUTLINE.map(([x, y]) => ({ x: x * width, y: y * height }));
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 8;
+    tracePolygon(outline);
+    ctx.fillStyle = "#263638";
+    ctx.fill();
+    ctx.restore();
+
+    mapRegions.forEach(({ territory, polygon }) => {
+      const faction = FACTIONS[territory.owner];
+      const isSelected = territory === selected;
+      const isHovered = territory === hovered && territory !== selected;
+      const isValidTarget = selected && isHovered && isConnected(selected, territory);
+
+      tracePolygon(polygon);
+      ctx.fillStyle = faction.land;
+      ctx.globalAlpha = territory.owner === NEUTRAL ? 0.82 : 0.96;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = isValidTarget
+        ? FACTIONS[PLAYER].color
+        : (isHovered ? "#ef626c" : (isSelected ? "#d7fff7" : "rgba(183, 207, 201, 0.3)"));
+      ctx.lineWidth = isSelected || isHovered ? 3 : 1.25;
+      ctx.stroke();
+    });
+
+    tracePolygon(outline);
+    ctx.strokeStyle = "rgba(208, 228, 221, 0.58)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 
   function drawEdges() {
@@ -482,23 +552,8 @@
     const center = pointOf(territory);
     const radius = radiusOf(territory);
     const faction = FACTIONS[territory.owner];
-    const isTarget = selected && hovered === territory && territory !== selected;
-    const validTarget = isTarget && isConnected(selected, territory);
 
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.38)";
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
-    traceCoast(territory);
-    ctx.fillStyle = faction.land;
-    ctx.globalAlpha = territory.owner === NEUTRAL ? 0.72 : 0.88;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.shadowColor = "transparent";
-    ctx.strokeStyle = validTarget ? FACTIONS[PLAYER].color : (isTarget ? "#ef626c" : `${faction.color}99`);
-    ctx.lineWidth = validTarget || isTarget ? 3 : 1.5;
-    ctx.stroke();
-
     const pulseScale = 1 + territory.pulse * 0.035;
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius * 0.68 * pulseScale, 0, Math.PI * 2);
@@ -536,8 +591,13 @@
       ctx.setLineDash([]);
     }
 
-    ctx.fillStyle = "#f4faf7";
+    ctx.fillStyle = faction.color;
     ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.font = "750 10px system-ui";
+    ctx.fillText(territory.id, center.x, center.y - radius * 0.9);
+
+    ctx.fillStyle = "#f4faf7";
     ctx.textBaseline = "middle";
     ctx.font = `800 ${Math.max(15, Math.min(24, radius * 0.56))}px system-ui`;
     ctx.fillText(String(territory.units), center.x, center.y + 1);
@@ -552,7 +612,7 @@
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
-    const offset = Math.min(38, distance * 0.11) * convoy.arcSign + convoy.lane;
+    const offset = Math.min(38, distance * 0.11) * convoy.arcSign;
     const control = {
       x: (from.x + to.x) / 2 - (dy / distance) * offset,
       y: (from.y + to.y) / 2 + (dx / distance) * offset,
@@ -566,17 +626,27 @@
 
   function drawConvoys() {
     convoys.forEach((convoy) => {
-      if (convoy.elapsed < 0) return;
       const point = convoyPosition(convoy);
       const faction = FACTIONS[convoy.owner];
+      const tokenRadius = convoy.amount >= 100 ? 15 : 13;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 7;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 4.2, 0, Math.PI * 2);
-      ctx.fillStyle = faction.color;
+      ctx.arc(point.x, point.y, tokenRadius, 0, Math.PI * 2);
+      ctx.fillStyle = faction.dark;
       ctx.fill();
-      ctx.beginPath();
-      ctx.arc(point.x - 1.2, point.y - 1.4, 1.1, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
-      ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = faction.color;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${convoy.amount >= 100 ? 9 : 11}px system-ui`;
+      ctx.fillText(String(convoy.amount), point.x, point.y + 0.5);
+      ctx.restore();
     });
   }
 
@@ -614,6 +684,7 @@
 
   function draw() {
     drawBackground();
+    drawMap();
     drawEdges();
     territories.forEach(drawTerritory);
     drawConvoys();
@@ -674,7 +745,7 @@
     const target = territoryAt(position.x, position.y);
     if (target && target !== selected) {
       if (isConnected(selected, target)) {
-        if (!sendArmy(selected, target, PLAYER, ratio, true)) showToast("兵力不足");
+        if (!sendArmy(selected, target, PLAYER, 1, true)) showToast("兵力不足");
       } else {
         showToast("两地之间没有航线");
       }
@@ -731,13 +802,6 @@
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
-
-  document.getElementById("ratioControl").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-ratio]");
-    if (!button) return;
-    ratio = Number(button.dataset.ratio);
-    document.querySelectorAll("#ratioControl button").forEach((item) => item.classList.toggle("active", item === button));
-  });
 
   document.getElementById("restartBtn").addEventListener("click", () => loadLevel(currentLevel));
   document.getElementById("retryBtn").addEventListener("click", () => loadLevel(currentLevel));
