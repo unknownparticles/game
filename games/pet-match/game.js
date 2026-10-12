@@ -5,9 +5,12 @@
   const COLUMN_COUNT = 8;
   const ROW_COUNT = 12;
   const PETS_PER_KIND = 6;
-  const INITIAL_REVEALED = 2;
+  const INITIAL_REVEALED = 1;
   const ROUND_SECONDS = 300;
-  const MAX_LAYOUT_ATTEMPTS = 40;
+  const MOVE_SETTLE_MS = 240;
+  const MAX_LAYOUT_ATTEMPTS = 60;
+  const MIN_SCRAMBLED_COLUMN = 2;
+  const MAX_SCRAMBLED_COLUMN = 10;
 
   const boardEl = document.getElementById("board");
   const remainingEl = document.getElementById("remaining");
@@ -31,6 +34,8 @@
   let pointerAction = null;
   let ignoreClick = false;
   let locked = false;
+  let transitionToken = 0;
+  let newlyRevealedCardIds = new Set();
   let nextCardId = 1;
 
   function shuffle(items) {
@@ -53,116 +58,136 @@
     return deck;
   }
 
-  function dealCards(cards, lengths) {
-    let cursor = 0;
-    return lengths.map((length) => {
-      const column = cards.slice(cursor, cursor + length);
-      cursor += length;
-      return column;
-    });
-  }
-
-  function clearCompletedForSolver(columns) {
-    columns.forEach((column, index) => {
-      if (column.length === PETS_PER_KIND && column.every((pet) => pet === column[0])) {
-        columns[index] = [];
-      }
-    });
-  }
-
-  function solverDestination(columns, excluded) {
-    let target = -1;
-    columns.forEach((column, index) => {
-      if (excluded.has(index) || column.length >= ROW_COUNT) return;
-      if (target === -1 || column.length < columns[target].length) target = index;
-    });
-    return target;
-  }
-
-  // Use only legal top-card moves and the game's automatic six-card removal rule.
-  function isSolvableLayout(layout) {
-    const columns = layout.map((column) => column.map((card) => card.pet));
-    const counts = new Map();
-    let moves = 0;
-
-    for (const column of columns) {
-      if (column.length > ROW_COUNT) return false;
-      column.forEach((pet) => counts.set(pet, (counts.get(pet) || 0) + 1));
+  function topRunLength(column) {
+    if (column.length === 0) return 0;
+    const pet = column[column.length - 1].pet;
+    let length = 0;
+    for (let index = column.length - 1; index >= 0 && column[index].pet === pet; index -= 1) {
+      length += 1;
     }
-    if ([...counts.values()].some((count) => count !== PETS_PER_KIND)) return false;
-
-    const moveTop = (source, target) => {
-      if (!columns[source].length || columns[target].length >= ROW_COUNT) return false;
-      columns[target].push(columns[source].pop());
-      moves += 1;
-      clearCompletedForSolver(columns);
-      return moves <= 10000;
-    };
-
-    clearCompletedForSolver(columns);
-    while (columns.some((column) => column.length)) {
-      let target = columns.findIndex((column) => column.length === 0);
-      if (target === -1) {
-        let source = 0;
-        for (let index = 1; index < columns.length; index += 1) {
-          if (columns[index].length < columns[source].length) source = index;
-        }
-        while (columns[source].length) {
-          const destination = solverDestination(columns, new Set([source]));
-          if (destination === -1 || !moveTop(source, destination)) return false;
-        }
-        target = source;
-      }
-
-      const petColumn = columns.find((column) => column.length);
-      if (!petColumn) break;
-      const pet = petColumn[petColumn.length - 1];
-
-      while (columns.some((column) => column.includes(pet))) {
-        const source = columns.findIndex((column, index) => index !== target && column.includes(pet));
-        if (source === -1) return false;
-
-        while (columns[source].length && columns[source][columns[source].length - 1] !== pet) {
-          const destination = solverDestination(columns, new Set([source, target]));
-          if (destination === -1 || !moveTop(source, destination)) return false;
-        }
-        if (!columns[source].length || !moveTop(source, target)) return false;
-      }
-
-      if (columns[target].length !== 0) return false;
-    }
-    return true;
+    return length;
   }
 
-  function createSolvableLayout(cards, lengths, avoidCompleted = false) {
+  function isSingleKind(column) {
+    return column.length > 0 && column.every((card) => card.pet === column[0].pet);
+  }
+
+  function isCompletedColumn(column) {
+    return column.length === PETS_PER_KIND && isSingleKind(column);
+  }
+
+  function createSolvedColumns(cards, columnCount) {
+    const groups = new Map();
+    cards.forEach((card) => {
+      if (!groups.has(card.pet)) groups.set(card.pet, []);
+      groups.get(card.pet).push({ ...card, revealed: false });
+    });
+    if (groups.size !== columnCount) return null;
+    if ([...groups.values()].some((group) => group.length !== PETS_PER_KIND)) return null;
+    return shuffle([...groups.values()]).map((group) => shuffle(group));
+  }
+
+  function hasValidReverseSolution(layout, reverseMoves) {
+    const columns = cloneColumns(layout);
+    const completed = new Set();
+
+    for (let index = reverseMoves.length - 1; index >= 0; index -= 1) {
+      const move = reverseMoves[index];
+      const sourceIndex = move.target;
+      const targetIndex = move.source;
+      const source = columns[sourceIndex];
+      const target = columns[targetIndex];
+      if (completed.has(sourceIndex) || completed.has(targetIndex)) return false;
+      if (source.length < move.count || target.length + move.count > ROW_COUNT) return false;
+
+      const cards = source.slice(source.length - move.count);
+      const targetTop = target[target.length - 1];
+      if (cards.some((card) => card.pet !== move.pet)) return false;
+      if (targetTop && targetTop.pet !== move.pet) return false;
+      target.push(...source.splice(source.length - move.count));
+
+      columns.forEach((column, columnIndex) => {
+        if (isCompletedColumn(column)) completed.add(columnIndex);
+      });
+    }
+
+    return completed.size === columns.length;
+  }
+
+  // Start with solved columns and apply reversible splits. Replaying the splits
+  // backwards always uses the same-top rule and leads back to locked columns.
+  function createSolvableLayout(cards, columnCount) {
     for (let attempt = 0; attempt < MAX_LAYOUT_ATTEMPTS; attempt += 1) {
-      const shuffled = shuffle(cards).map((card) => ({ ...card, revealed: false }));
-      const columns = dealCards(shuffled, lengths);
-      if (avoidCompleted && columns.some(isSingleKind)) continue;
-      if (isSolvableLayout(columns)) return columns;
+      const columns = createSolvedColumns(cards, columnCount);
+      if (!columns) return null;
+      const reverseMoves = [];
+      const targetSteps = Math.max(12, columnCount * 8);
+
+      for (let step = 0; step < targetSteps; step += 1) {
+        const candidates = [];
+        columns.forEach((source, sourceIndex) => {
+          const runLength = topRunLength(source);
+          columns.forEach((target, targetIndex) => {
+            if (sourceIndex === targetIndex) return;
+            const maxCount = Math.min(
+              runLength - 1,
+              source.length - MIN_SCRAMBLED_COLUMN,
+              MAX_SCRAMBLED_COLUMN - target.length
+            );
+            if (maxCount < 1) return;
+            const sourcePet = source[source.length - 1].pet;
+            const targetTop = target[target.length - 1];
+            candidates.push({
+              source: sourceIndex,
+              target: targetIndex,
+              maxCount,
+              pet: sourcePet,
+              mixesKinds: !targetTop || targetTop.pet !== sourcePet,
+            });
+          });
+        });
+
+        if (candidates.length === 0) break;
+        const mixedCandidates = candidates.filter((candidate) => candidate.mixesKinds);
+        const pool = mixedCandidates.length ? mixedCandidates : candidates;
+        const candidate = pool[Math.floor(Math.random() * pool.length)];
+        const count = 1 + Math.floor(Math.random() * candidate.maxCount);
+        const source = columns[candidate.source];
+        columns[candidate.target].push(...source.splice(source.length - count));
+        reverseMoves.push({ ...candidate, count });
+      }
+
+      const mixedEnough = reverseMoves.length >= Math.max(4, columnCount * 2);
+      if (!mixedEnough || columns.some(isCompletedColumn)) continue;
+      if (hasValidReverseSolution(columns, reverseMoves)) return columns;
     }
     return null;
   }
 
-  function createFallbackColumns(deck) {
-    const pools = new Map(PETS.map((pet) => [pet, deck.filter((card) => card.pet === pet)]));
-    const columns = Array.from({ length: COLUMN_COUNT }, () => []);
-    for (let layer = 0; layer < PETS_PER_KIND; layer += 1) {
-      for (let column = 0; column < COLUMN_COUNT; column += 1) {
-        const pet = PETS[(column + layer) % PETS.length];
-        columns[column].push({ ...pools.get(pet).pop(), revealed: false });
+  function createFallbackLayout(cards, columnCount) {
+    const columns = createSolvedColumns(cards, columnCount);
+    if (!columns || columnCount < 2) return columns;
+
+    let cursor = 0;
+    while (columnCount - cursor > 0) {
+      const remaining = columnCount - cursor;
+      const groupSize = remaining === 3 ? 3 : 2;
+      const targetIndex = cursor + 1;
+      for (let offset = 0; offset < groupSize; offset += 1) {
+        const sourceIndex = cursor + offset;
+        if (sourceIndex === targetIndex) continue;
+        columns[targetIndex].push(...columns[sourceIndex].splice(-2));
       }
+      cursor += groupSize;
     }
     return columns;
   }
 
   function createColumns() {
     const deck = createDeck();
-    const lengths = Array(COLUMN_COUNT).fill(PETS_PER_KIND);
-    let columns = createSolvableLayout(deck, lengths, true);
-    if (!columns) {
-      columns = createFallbackColumns(deck);
-      if (!isSolvableLayout(columns)) throw new Error("Unable to create a solvable pet layout");
+    const columns = createSolvableLayout(deck, COLUMN_COUNT) || createFallbackLayout(deck, COLUMN_COUNT);
+    if (!columns || columns.some(isCompletedColumn)) {
+      throw new Error("Unable to create a solvable pet layout");
     }
     columns.forEach((column) => revealTop(column));
     return columns;
@@ -173,7 +198,8 @@
       columns: createColumns(),
       score: 0,
       seconds: ROUND_SECONDS,
-      removed: 0,
+      completedCards: 0,
+      completedColumns: Array(COLUMN_COUNT).fill(false),
       ended: false,
       paused: false,
       history: [],
@@ -188,41 +214,46 @@
     state.history.push({
       columns: cloneColumns(state.columns),
       score: state.score,
-      removed: state.removed,
+      completedCards: state.completedCards,
+      completedColumns: [...state.completedColumns],
     });
     if (state.history.length > 30) state.history.shift();
   }
 
   function revealTop(column) {
-    let revealed = 0;
-    for (let index = column.length - 1; index >= 0; index -= 1) {
-      if (revealed < INITIAL_REVEALED) {
+    let visibleSlots = 0;
+    for (let index = column.length - 1; index >= 0 && visibleSlots < INITIAL_REVEALED; index -= 1) {
+      if (!column[index].revealed) {
         column[index].revealed = true;
-        revealed += 1;
+        newlyRevealedCardIds.add(column[index].id);
       }
+      visibleSlots += 1;
     }
-  }
-
-  function isSingleKind(column) {
-    return column.length > 0 && column.every((card) => card.pet === column[0].pet);
   }
 
   function getMove(sourceColumn, cardIndex) {
     const column = state.columns[sourceColumn];
-    const card = column[cardIndex];
-    if (!card || !card.revealed) return null;
-
-    const pureColumn = isSingleKind(column);
-    if (!pureColumn && cardIndex !== column.length - 1) return null;
+    const card = column && column[cardIndex];
+    if (!card || !card.revealed || state.completedColumns[sourceColumn]) return null;
 
     const cards = column.slice(cardIndex);
-    if (cards.some((item) => !item.revealed)) return null;
+    if (cards.some((item) => !item.revealed || item.pet !== card.pet)) return null;
     return { sourceColumn, cardIndex, cards };
   }
 
   function canMove(move, targetColumn) {
-    if (!move || targetColumn === move.sourceColumn) return false;
-    return state.columns[targetColumn].length + move.cards.length <= ROW_COUNT;
+    if (!move || targetColumn === move.sourceColumn || state.completedColumns[targetColumn]) return false;
+    const target = state.columns[targetColumn];
+    if (!target || target.length + move.cards.length > ROW_COUNT) return false;
+    const targetTop = target[target.length - 1];
+    return !targetTop || targetTop.pet === move.cards[0].pet;
+  }
+
+  function invalidMoveMessage(move, targetColumn) {
+    if (state.completedColumns[targetColumn]) return "已完成的列不能再移动";
+    const target = state.columns[targetColumn];
+    if (target && target.length + move.cards.length > ROW_COUNT) return "目标列没有足够空位";
+    return "只能叠放到空列或顶部相同的萌宠上";
   }
 
   function setStatus(message) {
@@ -239,7 +270,10 @@
       columnEl.className = "column";
       columnEl.dataset.column = String(columnIndex);
       columnEl.setAttribute("aria-label", `第 ${columnIndex + 1} 列，${column.length} 个方块`);
-      if (isSingleKind(column)) columnEl.classList.add("pure-column");
+      if (state.completedColumns[columnIndex]) {
+        columnEl.classList.add("completed-column");
+        columnEl.setAttribute("aria-label", `第 ${columnIndex + 1} 列，已整理完成`);
+      }
 
       const selectedMove = selected && selected.sourceColumn !== columnIndex ? selected : null;
       if (selectedMove) {
@@ -270,6 +304,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "cell filled face";
+        if (newlyRevealedCardIds.has(card.id)) button.classList.add("revealing");
         button.textContent = card.pet;
         button.dataset.column = String(columnIndex);
         button.dataset.index = String(stackIndex);
@@ -288,10 +323,11 @@
 
       boardEl.appendChild(columnEl);
     });
+    newlyRevealedCardIds.clear();
   }
 
   function renderStats() {
-    remainingEl.textContent = String(PETS.length * PETS_PER_KIND - state.removed);
+    remainingEl.textContent = String(PETS.length * PETS_PER_KIND - state.completedCards);
     scoreEl.textContent = String(state.score);
     undoBtn.disabled = state.history.length === 0 || state.ended || locked;
     shuffleBtn.disabled = state.ended || locked;
@@ -320,59 +356,60 @@
 
   function performMove(move, targetColumn) {
     if (locked || state.ended || state.paused || !canMove(move, targetColumn)) {
-      if (move && targetColumn !== move.sourceColumn) setStatus("目标列没有足够空位");
+      if (move && targetColumn !== move.sourceColumn) setStatus(invalidMoveMessage(move, targetColumn));
       selected = null;
       renderBoard();
       return false;
     }
 
     saveHistory();
+    locked = true;
+    const moveToken = ++transitionToken;
     const source = state.columns[move.sourceColumn];
     const movedCards = source.splice(move.cardIndex);
-    movedCards.forEach((card) => { card.revealed = true; });
     state.columns[targetColumn].push(...movedCards);
-    revealTop(source);
     selected = null;
     render();
-    setStatus(`已移动 ${movedCards.length} 个 ${movedCards[0].pet}`);
-    checkCompletedColumns();
+    const targetEl = boardEl.querySelector(`[data-column="${targetColumn}"]`);
+    if (targetEl) targetEl.classList.add("receiving");
+    setStatus(`正在移动 ${movedCards.length} 个 ${movedCards[0].pet}`);
+
+    window.setTimeout(() => {
+      if (moveToken !== transitionToken) return;
+      revealTop(source);
+      const completed = checkCompletedColumns();
+      locked = false;
+      render();
+      completed.forEach((index) => {
+        const columnEl = boardEl.querySelector(`[data-column="${index}"]`);
+        if (columnEl) columnEl.classList.add("just-completed");
+      });
+
+      if (state.completedCards === PETS.length * PETS_PER_KIND) {
+        finish(true, "所有萌宠都整理完成了");
+      } else if (completed.length > 0) {
+        setStatus(`整理完成 ${completed.length} 列，已固定`);
+      } else {
+        setStatus(`已移动 ${movedCards.length} 个 ${movedCards[0].pet}`);
+      }
+    }, MOVE_SETTLE_MS);
     return true;
   }
 
-  function completedColumnIndexes() {
-    return state.columns
-      .map((column, index) => ({ column, index }))
-      .filter(({ column }) =>
-        column.length === PETS_PER_KIND &&
-        ROW_COUNT - column.length >= column.length &&
-        isSingleKind(column)
-      )
-      .map(({ index }) => index);
-  }
-
   function checkCompletedColumns() {
-    const completed = completedColumnIndexes();
-    if (completed.length === 0) return;
-
-    locked = true;
-    completed.forEach((index) => {
-      const el = boardEl.querySelector(`[data-column="${index}"]`);
-      if (el) el.classList.add("clearing");
-    });
-    setStatus(`整理完成 ${completed.length} 列，整列移出！`);
-
-    window.setTimeout(() => {
-      completed.forEach((index) => {
-        state.removed += state.columns[index].length;
-        state.columns[index] = [];
-        state.score += 600;
+    const completed = [];
+    state.columns.forEach((column, index) => {
+      if (state.completedColumns[index] || !isCompletedColumn(column)) return;
+      state.completedColumns[index] = true;
+      state.completedCards += column.length;
+      state.score += 600;
+      column.forEach((card) => {
+        if (!card.revealed) newlyRevealedCardIds.add(card.id);
+        card.revealed = true;
       });
-      locked = false;
-      render();
-      if (state.removed === PETS.length * PETS_PER_KIND) {
-        finish(true, "所有萌宠都整理完成了");
-      }
-    }, 430);
+      completed.push(index);
+    });
+    return completed;
   }
 
   function useUndo() {
@@ -380,7 +417,8 @@
     const previous = state.history.pop();
     state.columns = cloneColumns(previous.columns);
     state.score = previous.score;
-    state.removed = previous.removed;
+    state.completedCards = previous.completedCards;
+    state.completedColumns = [...previous.completedColumns];
     selected = null;
     render();
     setStatus("已撤回上一步");
@@ -388,21 +426,34 @@
 
   function useShuffle() {
     if (locked || state.ended) return;
-    const cards = state.columns.flat().map((card) => ({ ...card, revealed: false }));
-    const lengths = state.columns.map((column) => column.length);
-    const columns = createSolvableLayout(cards, lengths);
-    if (!columns) {
+    const columnIndexes = state.columns
+      .map((_, index) => index)
+      .filter((index) => !state.completedColumns[index]);
+    const cards = columnIndexes.flatMap((index) =>
+      state.columns[index].map((card) => ({ ...card, revealed: false }))
+    );
+    const shuffledColumns = createSolvableLayout(cards, columnIndexes.length)
+      || createFallbackLayout(cards, columnIndexes.length);
+    if (!shuffledColumns) {
       setStatus("未找到新的可解布局，请继续当前棋盘");
       return;
     }
 
     saveHistory();
-    state.columns = columns;
-    state.columns.forEach((column) => revealTop(column));
+    columnIndexes.forEach((columnIndex, index) => {
+      state.columns[columnIndex] = shuffledColumns[index];
+      revealTop(state.columns[columnIndex]);
+    });
     selected = null;
+    const completed = checkCompletedColumns();
     render();
-    setStatus("棋盘已重新打乱，并确认可以完成");
-    checkCompletedColumns();
+    if (state.completedCards === PETS.length * PETS_PER_KIND) {
+      finish(true, "所有萌宠都整理完成了");
+    } else if (completed.length > 0) {
+      setStatus(`整理完成 ${completed.length} 列，已固定`);
+    } else {
+      setStatus("未完成的列已重新打乱，并确认可以完成");
+    }
   }
 
   function tick() {
@@ -469,6 +520,8 @@
   }
 
   function startGame() {
+    transitionToken += 1;
+    newlyRevealedCardIds.clear();
     nextCardId = 1;
     state = createInitialState();
     selected = null;
@@ -477,7 +530,7 @@
     lastTick = Date.now();
     hideOverlay();
     render();
-    setStatus("拖动明牌，把相同萌宠整理到一列");
+    setStatus("拖动顶部同种萌宠，叠放到相同萌宠上");
   }
 
   function positionGhost(event) {
@@ -560,6 +613,8 @@
       hideDragGhost();
       if (targetColumn != null) performMove(action.move, targetColumn);
       else setStatus("请拖到棋盘中的目标列");
+    } else if (selected && selected.sourceColumn !== action.move.sourceColumn) {
+      performMove(selected, action.move.sourceColumn);
     } else {
       selectMove(action.move.sourceColumn, action.move.cardIndex);
     }
@@ -576,7 +631,12 @@
     if (ignoreClick || locked || state.ended || state.paused) return;
     const face = event.target.closest(".cell.face:not(:disabled)");
     if (face) {
-      selectMove(Number(face.dataset.column), Number(face.dataset.index));
+      const targetColumn = Number(face.dataset.column);
+      if (selected && selected.sourceColumn !== targetColumn) {
+        performMove(selected, targetColumn);
+      } else {
+        selectMove(targetColumn, Number(face.dataset.index));
+      }
       return;
     }
     if (!selected) return;

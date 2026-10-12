@@ -224,8 +224,42 @@ h1 {
   background: rgba(239, 90, 105, 0.28);
 }
 
-.column.clearing .cell.filled {
-  animation: columnClear 0.45s ease forwards;
+.column.receiving .cell.face {
+  animation: stackLand 0.24s ease;
+}
+
+.column.completed-column {
+  background: rgba(75, 181, 105, 0.32);
+  box-shadow: inset 0 0 0 3px rgba(225, 255, 179, 0.78);
+}
+
+.column.completed-column::before {
+  position: absolute;
+  z-index: 4;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  background: #49a95f;
+  content: "✓";
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.column.completed-column .cell.face {
+  border-color: #6fbd78;
+  background: linear-gradient(145deg, #f6ffe9, #dff5ca);
+  cursor: default;
+}
+
+.column.just-completed .cell.filled {
+  animation: columnComplete 0.42s ease;
 }
 
 .cell {
@@ -266,6 +300,9 @@ h1 {
   background: linear-gradient(145deg, #fffef0, #fff4d8);
   cursor: grab;
   font-size: clamp(23px, 6.5vw, 36px);
+}
+
+.cell.face.revealing {
   animation: reveal 0.3s cubic-bezier(.2,.85,.25,1.2);
 }
 
@@ -280,6 +317,10 @@ h1 {
 
 .cell.face:active {
   cursor: grabbing;
+}
+
+.cell.face:disabled {
+  cursor: default;
 }
 
 .cell.face.selected {
@@ -487,9 +528,13 @@ h1 {
   to { opacity: 1; transform: rotateY(0) scale(1); }
 }
 
-@keyframes columnClear {
-  35% { transform: translateY(-8px) scale(1.06); filter: brightness(1.18); }
-  100% { opacity: 0; transform: translateY(-48px) scale(0.72); }
+@keyframes stackLand {
+  from { transform: translateY(-10px); }
+  to { transform: translateY(0); }
+}
+
+@keyframes columnComplete {
+  50% { transform: translateY(-5px) scale(1.04); filter: brightness(1.16); }
 }
 
 @keyframes statusBump {
